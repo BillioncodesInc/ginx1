@@ -188,12 +188,19 @@ show_usage() {
 # ============================================
 
 start_chrome_headless() {
-    echo -e "${CYAN}🌐 Starting Chrome for GoogleBypasser...${NC}"
+    echo -e "${CYAN}🌐 Starting Chrome for GoogleBypasser + KasadaBypasser...${NC}"
 
     # Check if Chrome is already running on port 9222
     if pgrep -f "remote-debugging-port=9222" > /dev/null 2>&1; then
-        echo -e "${GREEN}  ✅ Chrome already running on port 9222${NC}"
-        return 0
+        # Verify it's actually responding
+        if curl -s --connect-timeout 2 http://127.0.0.1:9222/json > /dev/null 2>&1; then
+            echo -e "${GREEN}  ✅ Chrome already running and responding on port 9222${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}  ⚠️  Chrome process exists but not responding, restarting...${NC}"
+            pkill -9 -f "remote-debugging-port=9222" 2>/dev/null
+            sleep 1
+        fi
     fi
 
     # Find Chrome binary
@@ -237,13 +244,33 @@ start_chrome_headless() {
         --safebrowsing-disable-auto-update \
         > /tmp/chrome-headless.log 2>&1 &
 
-    # Wait for Chrome to start
-    sleep 2
+    local CHROME_PID=$!
+    echo -e "${CYAN}  Chrome started with PID: $CHROME_PID${NC}"
 
-    # Verify Chrome is running
+    # Wait for Chrome to be ready (up to 15 seconds)
+    echo -e "${CYAN}  Waiting for Chrome to be ready...${NC}"
+    local MAX_WAIT=30
+    local WAITED=0
+    while [[ $WAITED -lt $MAX_WAIT ]]; do
+        if curl -s --connect-timeout 1 http://127.0.0.1:9222/json > /dev/null 2>&1; then
+            echo -e "${GREEN}  ✅ Chrome headless is ready on port 9222 (took ${WAITED}s)${NC}"
+            
+            # Pre-warm Chrome by opening a blank page
+            echo -e "${CYAN}  Pre-warming Chrome browser...${NC}"
+            curl -s "http://127.0.0.1:9222/json/new?about:blank" > /dev/null 2>&1
+            sleep 1
+            echo -e "${GREEN}  ✅ Chrome pre-warmed and ready for GoogleBypasser${NC}"
+            return 0
+        fi
+        sleep 0.5
+        ((WAITED++))
+    done
+
+    # Check if process is still running
     if pgrep -f "remote-debugging-port=9222" > /dev/null 2>&1; then
-        echo -e "${GREEN}  ✅ Chrome headless started on port 9222${NC}"
-        return 0
+        echo -e "${YELLOW}  ⚠️  Chrome started but not responding on port 9222${NC}"
+        echo -e "${YELLOW}     Check /tmp/chrome-headless.log for errors${NC}"
+        return 1
     else
         echo -e "${RED}  ❌ Failed to start Chrome headless${NC}"
         echo -e "${YELLOW}     Check /tmp/chrome-headless.log for errors${NC}"

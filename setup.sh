@@ -70,7 +70,7 @@ show_usage() {
     echo -e "${YELLOW}What this script does:${NC}"
     echo "  1. Installs/updates system dependencies"
     echo "  2. Configures swap (4GB if RAM < 8GB)"
-    echo "  3. Installs Google Chrome (for GoogleBypasser)"
+    echo "  3. Installs Google Chrome (for GoogleBypasser + KasadaBypasser)"
     echo "  4. Configures DNS (disables systemd-resolved)"
     echo "  5. Installs Go if not present"
     echo "  6. Clears ports 80/443"
@@ -190,7 +190,7 @@ install_dependencies() {
     # Full system update and dependency installation
     apt update && apt upgrade -y
 
-    # Install all required packages (including Chrome deps for GoogleBypasser)
+    # Install all required packages (including Chrome deps for GoogleBypasser + KasadaBypasser)
     apt install -y \
         build-essential \
         gcc \
@@ -229,11 +229,11 @@ install_dependencies() {
         xdg-utils \
         ca-certificates
 
-    print_good "Dependencies installed (CGO/SQLite3 + Chrome libs for GoogleBypasser)!"
+    print_good "Dependencies installed (CGO/SQLite3 + Chrome libs for GoogleBypasser + KasadaBypasser)!"
 }
 
 install_chrome() {
-    print_info "Installing Google Chrome for GoogleBypasser (go-rod)..."
+    print_info "Installing Google Chrome for GoogleBypasser + KasadaBypasser (go-rod)..."
 
     # Check if Chrome is already installed
     if command -v google-chrome &> /dev/null || command -v google-chrome-stable &> /dev/null; then
@@ -825,11 +825,11 @@ show_status() {
         print_error "tmux: Not installed"
     fi
 
-    # Check Chrome (for GoogleBypasser)
+    # Check Chrome (for GoogleBypasser + KasadaBypasser)
     if command -v google-chrome &> /dev/null || command -v google-chrome-stable &> /dev/null; then
-        print_good "Chrome: Installed (GoogleBypasser ready)"
+        print_good "Chrome: Installed (GoogleBypasser + KasadaBypasser ready)"
     else
-        print_warning "Chrome: Not installed (GoogleBypasser will fail)"
+        print_warning "Chrome: Not installed (GoogleBypasser + KasadaBypasser will fail)"
     fi
 
     # Check binaries
@@ -914,9 +914,9 @@ run_full_setup() {
     configure_swap
     echo ""
 
-    # Step 3: Install Chrome (for GoogleBypasser)
+    # Step 3: Install Chrome (for GoogleBypasser + KasadaBypasser)
     echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
-    echo -e "${CYAN}Step 3/13: Installing Chrome (GoogleBypasser)${NC}"
+    echo -e "${CYAN}Step 3/13: Installing Chrome (GoogleBypasser + KasadaBypasser)${NC}"
     echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
     echo ""
     install_chrome

