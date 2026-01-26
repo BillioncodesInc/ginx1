@@ -1,0 +1,1 @@
+"""PhishCreator package."""

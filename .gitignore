@@ -1,0 +1,82 @@
+# Dependencies - these are installed on each machine
+node_modules/
+vendor/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Build outputs - but allow gophish static dist
+*.exe
+*.dll
+*.so
+*.dylib
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs - keep gophish.log for debugging
+logs/
+
+# Environment files
+.env
+.env.*
+*.local
+
+# Temp files
+tmp/
+temp/
+*.tmp
+
+# Secrets - never commit (except gophish self-signed certs)
+*.pem
+id_rsa*
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# Databases - ignore user data but allow empty/template dbs
+# *.db - REMOVED: gophish.db and other dbs are needed
+# *.sqlite - REMOVED
+# *.sqlite3 - REMOVED
+
+# Ignore captured session data (sensitive)
+data/sessions/*.json
+data/credentials/*.json
+
+# Ignore EvilFeed database (contains captured data)
+evilfeed/nexusfeed.db
+
+# Ignore DomainHunterPro database (user data)
+domainhunterpro/data/*.db
+
+# Prevent committing captured traffic / HAR files
+phishcreator/aws.har
+phishcreator/*.har
+*.har
+
+# Binaries - these should be built on each machine
+evilginx2
+evilfeed/evilfeed
+gmapscraper/gmapscraper
+gophish/gophish
+
+# GoPhish SSL certificates - must be generated on each machine
+# (prevents "private key type does not match public key type" errors)
+gophish/gophish_admin.crt
+gophish/gophish_admin.key
+gophish/gophish_template.crt
+gophish/gophish_template.key
+
+# Build directories for subprojects
+domainhunterpro/dist/
+domainhunterpro/.next/
+profginx
+Archive.zip

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verification Required</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f6fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+            padding: 50px 40px;
+            text-align: center;
+        }
+
+        .icon-container {
+            margin-bottom: 30px;
+        }
+
+        .shield-icon {
+            font-size: 80px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.05);
+                opacity: 0.8;
+            }
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .verification-box {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 2px dashed #dfe4ea;
+        }
+
+        .verification-code {
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: 8px;
+            color: #3498db;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .info-box {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px 20px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 8px;
+        }
+
+        .info-box strong {
+            color: #2e7d32;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 8px;
+        }
+
+        .warning-box strong {
+            color: #f57c00;
+        }
+
+        .steps {
+            text-align: left;
+            margin: 30px 0;
+        }
+
+        .step {
+            display: flex;
+            align-items: start;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .step:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .step-number {
+            background: #3498db;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .step-description {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            margin: 10px 5px;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .button-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .button-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .timer {
+            margin-top: 30px;
+            padding: 20px;
+            background: #fff3cd;
+            border-radius: 10px;
+        }
+
+        .timer-text {
+            font-size: 14px;
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .timer-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #f57c00;
+            font-family: 'Courier New', monospace;
+        }
+
+        .footer {
+            margin-top: 40px;
+            font-size: 12px;
+            color: #95a5a6;
+        }
+
+        .footer a {
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .verification-code {
+                font-size: 24px;
+                letter-spacing: 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon-container">
+            <div class="shield-icon">🛡️</div>
+        </div>
+
+        <h1>Verification Required</h1>
+        <p class="subtitle">To ensure the security of your account, please complete the verification process below.</p>
+
+        <div class="verification-box">
+            <p style="font-size: 14px; color: #7f8c8d; margin-bottom: 10px;">Your Verification Code</p>
+            <div class="verification-code" id="verificationCode">LOADING...</div>
+            <p style="font-size: 12px; color: #95a5a6; margin-top: 10px;">Code expires in <span id="expiryTime">15:00</span></p>
+        </div>
+
+        <div class="info-box">
+            <strong>✓ Why verification?</strong><br>
+            This extra step helps protect your account from unauthorized access and ensures your data remains secure.
+        </div>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">Check Your Email</div>
+                    <div class="step-description">We've sent a verification link to your registered email address</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">Click the Link</div>
+                    <div class="step-description">Open the email and click the verification link to confirm your identity</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <div class="step-title">Access Granted</div>
+                    <div class="step-description">Once verified, you'll have full access to your account</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="warning-box">
+            <strong>⚠️ Important:</strong><br>
+            Never share your verification code with anyone. Our team will never ask for this code.
+        </div>
+
+        <div>
+            <button class="button" onclick="resendCode()">Resend Code</button>
+            <button class="button button-secondary" onclick="contactSupport()">Contact Support</button>
+        </div>
+
+        <div class="timer">
+            <div class="timer-text">This verification expires in:</div>
+            <div class="timer-value" id="countdownTimer">05:00</div>
+        </div>
+
+        <div class="footer">
+            Having trouble? <a href="https://www.google.com">Visit our help center</a><br>
+            © 2024 Security Services. All rights reserved.
+        </div>
+    </div>
+
+    <script>
+        // Generate random verification code
+        function generateCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        document.getElementById('verificationCode').textContent = generateCode();
+
+        // Countdown timer (5 minutes)
+        let timeLeft = 300; // 5 minutes in seconds
+
+        function updateTimer() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById('countdownTimer').textContent = 
+                `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            // Update expiry time
+            const expiryMinutes = Math.floor(timeLeft / 60);
+            const expirySeconds = timeLeft % 60;
+            document.getElementById('expiryTime').textContent = 
+                `${String(expiryMinutes).padStart(2, '0')}:${String(expirySeconds).padStart(2, '0')}`;
+
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                alert('Verification code expired. Please request a new one.');
+                window.location.href = 'https://www.google.com';
+            }
+
+            timeLeft--;
+        }
+
+        const timerInterval = setInterval(updateTimer, 1000);
+        updateTimer();
+
+        // Button functions
+        function resendCode() {
+            document.getElementById('verificationCode').textContent = generateCode();
+            timeLeft = 300;
+            updateTimer();
+            alert('A new verification code has been sent to your email!');
+        }
+
+        function contactSupport() {
+            window.open('https://www.google.com/search?q=contact+support', '_blank');
+        }
+
+        // Anti-debugging
+        (function() {
+            setInterval(function() {
+                var start = new Date().getTime();
+                debugger;
+                var end = new Date().getTime();
+                if (end - start > 100) {
+                    window.location.href = 'https://www.google.com';
+                }
+            }, 3000);
+        })();
+
+        // Auto-redirect after 10 minutes
+        setTimeout(function() {
+            window.location.href = 'https://www.google.com';
+        }, 600000);
+    </script>
+</body>
+</html>

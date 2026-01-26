@@ -1,0 +1,31 @@
+# User Agent Wordlist
+# Keywords to check in user agent strings (case-insensitive matching)
+# Lines starting with # or ; are treated as comments
+
+# Common bot patterns
+bot
+crawler
+spider
+scraper
+wget
+curl
+python-requests
+go-http-client
+
+# Security scanners
+burp
+nikto
+nmap
+nessus
+acunetix
+qualys
+openvas
+
+# Headless browsers (often used for automation)
+headlesschrome
+phantomjs
+selenium
+
+# Add your own keywords below:
+
+googlebot

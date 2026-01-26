@@ -1,0 +1,11 @@
+Flask==3.0.0
+flask-cors==4.0.0
+PyYAML==6.0.1
+# Playwright currently requires greenlet/pyee wheels that may not be available for
+# Python 3.13 on macOS. Pin to a known-good combo for 3.11/3.12, or install under
+# a compatible interpreter.
+#
+# Recommended: use Python 3.12 (or 3.11) for Playwright features.
+playwright==1.55.0
+requests==2.31.0
+Werkzeug==3.0.1

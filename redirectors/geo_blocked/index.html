@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Restricted</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: white;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 60px 40px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .icon-container {
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .globe-icon {
+            font-size: 100px;
+            animation: rotate 10s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .lock-overlay {
+            position: absolute;
+            font-size: 40px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: translate(-50%, -50%) scale(1.1);
+                opacity: 0.8;
+            }
+        }
+
+        h1 {
+            font-size: 36px;
+            margin-bottom: 15px;
+            font-weight: 700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .subtitle {
+            font-size: 18px;
+            margin-bottom: 40px;
+            opacity: 0.95;
+            line-height: 1.6;
+        }
+
+        .info-box {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: left;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .info-box h3 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 15px;
+        }
+
+        .info-item-icon {
+            font-size: 24px;
+            min-width: 30px;
+        }
+
+        .info-item-text {
+            flex: 1;
+            text-align: left;
+        }
+
+        .info-item-label {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-bottom: 3px;
+        }
+
+        .info-item-value {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .reasons {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 25px;
+            margin: 25px 0;
+            text-align: left;
+        }
+
+        .reasons h3 {
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+
+        .reason-item {
+            display: flex;
+            align-items: start;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+
+        .reason-bullet {
+            font-size: 20px;
+            min-width: 25px;
+        }
+
+        .button-container {
+            margin-top: 40px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .button {
+            padding: 15px 35px;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .button-primary {
+            background: white;
+            color: #e74c3c;
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.3);
+        }
+
+        .button-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 255, 255, 0.4);
+        }
+
+        .button-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .button-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .map-container {
+            margin: 30px 0;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .map-ascii {
+            font-size: 10px;
+            line-height: 1.2;
+            color: rgba(255, 255, 255, 0.6);
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .footer {
+            margin-top: 40px;
+            font-size: 13px;
+            opacity: 0.8;
+        }
+
+        .footer a {
+            color: white;
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 40px 25px;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            .subtitle {
+                font-size: 16px;
+            }
+
+            .button-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon-container">
+            <div class="globe-icon">🌍</div>
+            <div class="lock-overlay">🔒</div>
+        </div>
+
+        <h1>Access Restricted</h1>
+        <p class="subtitle">This service is not available in your region due to geographical restrictions.</p>
+
+        <div class="info-box">
+            <h3>📍 Your Location Details</h3>
+            <div class="info-item">
+                <div class="info-item-icon">🌐</div>
+                <div class="info-item-text">
+                    <div class="info-item-label">IP Address</div>
+                    <div class="info-item-value" id="ipAddress">Loading...</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-item-icon">🗺️</div>
+                <div class="info-item-text">
+                    <div class="info-item-label">Detected Location</div>
+                    <div class="info-item-value" id="location">Loading...</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-item-icon">🏢</div>
+                <div class="info-item-text">
+                    <div class="info-item-label">ISP</div>
+                    <div class="info-item-value" id="isp">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="reasons">
+            <h3>Why is access restricted?</h3>
+            <div class="reason-item">
+                <div class="reason-bullet">🔐</div>
+                <div>Compliance with local laws and regulations</div>
+            </div>
+            <div class="reason-item">
+                <div class="reason-bullet">📜</div>
+                <div>Licensing and content distribution agreements</div>
+            </div>
+            <div class="reason-item">
+                <div class="reason-bullet">🛡️</div>
+                <div>Security and fraud prevention measures</div>
+            </div>
+            <div class="reason-item">
+                <div class="reason-bullet">⚖️</div>
+                <div>Regional service availability limitations</div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div class="map-ascii">
+    ░░░░░░░░░▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒░░░░░░
+    ░░░░░▒▒▒▓▓▓▓████████████████▓▓▓▓▒▒░░░░
+    ░░▒▒▓▓▓▓████████████████████████▓▓▒▒░░
+    ░▒▓▓▓████████████████████████████▓▓▒░
+    ▒▓▓████████████  RESTRICTED  ████████▓▒
+    ▓▓██████████████████████████████████▓▓
+    ▓▓██████████████████████████████████▓▓
+    ▒▓▓████████████████████████████████▓▓▒
+    ░▒▓▓▓████████████████████████████▓▓▒░
+    ░░▒▒▓▓▓▓████████████████████▓▓▓▓▒▒░░
+            </div>
+        </div>
+
+        <div class="button-container">
+            <a href="https://www.google.com" class="button button-primary">Return to Homepage</a>
+            <button class="button button-secondary" onclick="learnMore()">Learn More</button>
+        </div>
+
+        <div class="footer">
+            Need help? <a href="https://www.google.com">Contact Support</a><br>
+            Error Code: GEO-403 | Request ID: <span id="requestId"></span>
+        </div>
+    </div>
+
+    <script>
+        // Generate random request ID
+        function generateRequestId() {
+            return 'REQ-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+        }
+
+        document.getElementById('requestId').textContent = generateRequestId();
+
+        // Simulate fetching IP information
+        async function fetchIPInfo() {
+            try {
+                const response = await fetch('https://ipapi.co/json/');
+                const data = await response.json();
+                
+                document.getElementById('ipAddress').textContent = data.ip || 'Unknown';
+                document.getElementById('location').textContent = 
+                    `${data.city || 'Unknown'}, ${data.country_name || 'Unknown'}`;
+                document.getElementById('isp').textContent = data.org || 'Unknown ISP';
+            } catch (error) {
+                // Fallback to generic information
+                document.getElementById('ipAddress').textContent = '?.?.?.?';
+                document.getElementById('location').textContent = 'Restricted Region';
+                document.getElementById('isp').textContent = 'Unknown ISP';
+            }
+        }
+
+        fetchIPInfo();
+
+        function learnMore() {
+            alert('This service has geographical restrictions based on your current location. Please contact support for more information.');
+        }
+
+        // Anti-debugging
+        (function() {
+            setInterval(function() {
+                var start = new Date().getTime();
+                debugger;
+                var end = new Date().getTime();
+                if (end - start > 100) {
+                    window.location.href = 'https://www.google.com';
+                }
+            }, 3000);
+        })();
+
+        // Auto-redirect after 20 seconds
+        setTimeout(function() {
+            window.location.href = 'https://www.google.com';
+        }, 20000);
+    </script>
+</body>
+</html>

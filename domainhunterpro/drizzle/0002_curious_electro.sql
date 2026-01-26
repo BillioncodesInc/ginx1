@@ -1,0 +1,1 @@
+ALTER TABLE `domainMetrics` ADD `pageAuthority` int DEFAULT 0 NOT NULL;

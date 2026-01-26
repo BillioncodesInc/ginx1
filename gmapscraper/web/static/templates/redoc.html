@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>API Documentation</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+        color: #e5e7eb;
+        font-family: 'Montserrat', 'Roboto', sans-serif;
+      }
+      .redoc-wrapper { min-height: 100vh; }
+      @media (max-width: 640px) {
+        body { padding: 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="redoc-wrapper">
+      <redoc spec-url="/static/spec/spec.yaml"></redoc>
+    </div>
+    <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+  </body>
+</html>

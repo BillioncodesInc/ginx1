@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishCreator Pro - Developer Tool</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>PhishCreator Pro</h1>
+            <p class="subtitle">AI-Powered Phishlet Analysis with Live Traffic Capture</p>
+        </header>
+
+        <!-- Analysis Mode Tabs -->
+        <div class="card mode-tabs">
+            <div class="tabs-container">
+                <button class="tab-btn active" data-mode="upload">
+                    <span class="tab-icon">&#128193;</span>
+                    <span class="tab-text">HAR File Analysis</span>
+                </button>
+                <button class="tab-btn" data-mode="live">
+                    <span class="tab-icon">&#127760;</span>
+                    <span class="tab-text">Live Traffic Capture</span>
+                </button>
+                <button class="tab-btn" data-mode="ai" id="aiTabBtn">
+                    <span class="tab-icon">&#129302;</span>
+                    <span class="tab-text">Manus AI Update</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Configuration Panel -->
+        <div class="card config-panel" id="configPanel">
+            <h2>⚙️ Configuration</h2>
+            <div class="config-grid">
+                <div class="config-item">
+                    <label for="manusApiKey">Manus API Key</label>
+                    <input type="password" id="manusApiKey" placeholder="paste Manus API key (JWT or sk- format)">
+                    <small>Use your Manus key (formats vary). Avoid using keys from other providers.</small>
+                </div>
+                <div class="config-item">
+                    <label>
+                        <input type="checkbox" id="useAI">
+                        Use AI Analysis
+                    </label>
+                    <small>Enable Manus AI update workflow (requires 3 files)</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section (HAR Mode) -->
+        <div class="card upload-section mode-panel" id="uploadModePanel" data-mode="upload">
+            <h2>Upload Files</h2>
+            <div class="upload-grid">
+                <div class="upload-zone" id="phishletZone">
+                    <input type="file" id="phishletFile" accept=".yaml,.yml" hidden>
+                    <div class="upload-content">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                        </svg>
+                        <p>Drop phishlet YAML here</p>
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('phishletFile').click()">
+                            Browse Files
+                        </button>
+                        <span class="file-name" id="phishletFileName"></span>
+                    </div>
+                </div>
+                <div class="upload-zone" id="harZone">
+                    <input type="file" id="harFile" accept=".har" hidden>
+                    <div class="upload-content">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                        </svg>
+                        <p>Drop HAR file here</p>
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('harFile').click()">
+                            Browse Files
+                        </button>
+                        <span class="file-name" id="harFileName"></span>
+                    </div>
+                </div>
+            </div>
+            <button type="button" id="analyzeBtn" class="btn-primary" disabled>
+                Analyze Phishlet
+            </button>
+        </div>
+
+        <!-- Live Traffic Capture Section -->
+        <div class="card live-section mode-panel hidden" id="liveModePanel" data-mode="live">
+            <h2>Live Traffic Capture</h2>
+            <p class="section-description">
+                Launch a browser to capture real-time authentication traffic. Navigate through the login flow while we analyze the network requests.
+            </p>
+
+            <div class="live-form">
+                <div class="form-group">
+                    <label for="targetUrl">Target Login URL</label>
+                    <input type="url" id="targetUrl" placeholder="https://example.com/login" class="form-input">
+                    <small>Enter the URL of the login page you want to analyze</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="phishletName">Phishlet Name (optional)</label>
+                    <input type="text" id="phishletName" placeholder="example" class="form-input">
+                    <small>Name for the generated phishlet (defaults to domain name)</small>
+                </div>
+
+                <!-- Old Phishlet Upload -->
+                <div class="form-group">
+                    <label for="oldPhishletFile">Old Phishlet YAML (optional)</label>
+                    <input type="file" id="oldPhishletFile" accept=".yaml,.yml" class="form-input">
+                    <small>Upload an existing phishlet to use as baseline for comparison and updates</small>
+                    <span class="file-name" id="oldPhishletFileName"></span>
+                </div>
+
+                <!-- Authenticated HAR Upload (optional) -->
+                <div class="form-group">
+                    <label for="authHarFile">Authenticated HAR (optional)</label>
+                    <input type="file" id="authHarFile" accept=".har,.json" class="form-input">
+                    <small>
+                        Optional: upload an authenticated HAR capture (post-login) to merge with live capture.
+                        This improves host coverage, cookies, auth_urls, and token signals.
+                    </small>
+                    <span class="file-name" id="authHarFileName"></span>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="headlessMode">
+                        Run in headless mode (no visible browser)
+                    </label>
+                </div>
+
+                <button type="button" id="startLiveBtn" class="btn-primary btn-large">
+                    Launch Browser & Start Capture
+                </button>
+            </div>
+
+            <!-- Live Session Status -->
+            <div id="liveSessionPanel" class="live-session-panel hidden">
+                <div class="session-header">
+                    <h3>Live Capture Session</h3>
+                    <span id="sessionStatus" class="status-badge">Starting...</span>
+                </div>
+
+                <div class="session-stats">
+                    <div class="stat">
+                        <span class="stat-value" id="requestsCount">0</span>
+                        <span class="stat-label">Requests</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value" id="hostsCount">0</span>
+                        <span class="stat-label">Hosts</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value" id="formsCount">0</span>
+                        <span class="stat-label">Forms</span>
+                    </div>
+                </div>
+
+                <div class="session-log" id="sessionLog">
+                    <div class="log-entry">Initializing browser...</div>
+                </div>
+
+                <div class="session-actions">
+                    <button type="button" id="stopLiveBtn" class="btn-primary">
+                        Stop & Analyze Traffic
+                    </button>
+                    <button type="button" id="cancelLiveBtn" class="btn-secondary">
+                        Cancel Session
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manus AI Update Section -->
+        <div class="card ai-section mode-panel hidden" id="aiModePanel" data-mode="ai">
+            <h2>Manus AI Update</h2>
+            <p class="section-description">
+                Provide all three inputs so Manus can update your old phishlet using live-session YAML and HAR evidence.
+            </p>
+
+            <div class="live-form">
+                <div class="form-group">
+                    <label for="aiOldPhishletFile">Old Phishlet YAML (required)</label>
+                    <input type="file" id="aiOldPhishletFile" accept=".yaml,.yml" class="form-input">
+                    <small>Baseline phishlet that needs to be updated.</small>
+                    <span class="file-name" id="aiOldPhishletFileName"></span>
+                </div>
+
+                <div class="form-group">
+                    <label for="aiLiveYamlFile">Live Session YAML (required)</label>
+                    <input type="file" id="aiLiveYamlFile" accept=".yaml,.yml" class="form-input">
+                    <small>Generated from a completed live session.</small>
+                    <span class="file-name" id="aiLiveYamlFileName"></span>
+                </div>
+
+                <div class="form-group">
+                    <label for="aiHarFile">HAR File (required)</label>
+                    <input type="file" id="aiHarFile" accept=".har,.json" class="form-input">
+                    <small>Authenticated HAR capture to validate cookies and host coverage.</small>
+                    <span class="file-name" id="aiHarFileName"></span>
+                </div>
+
+                <div class="form-group">
+                    <label for="aiPromptPreview">Prompt Preview</label>
+                    <textarea id="aiPromptPreview" class="form-input" rows="5" readonly></textarea>
+                    <small>This prompt is sent to Manus AI along with your files.</small>
+                </div>
+
+                <button type="button" id="aiUpdateBtn" class="btn-primary btn-large" disabled>
+                    Create Manus AI Task
+                </button>
+                <small id="aiEnableNote">Enable "Use AI Analysis" in Configuration to proceed.</small>
+            </div>
+        </div>
+
+        <!-- Progress Section -->
+        <div class="card progress-section hidden" id="progressSection">
+            <h2>⏳ Analysis in Progress</h2>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p id="progressText">Initializing...</p>
+        </div>
+
+        <!-- Results Section -->
+        <div class="card results-section hidden" id="resultsSection">
+            <h2>📊 Analysis Results</h2>
+            <div class="stats-grid">
+                <div class="stat-card critical">
+                    <h3 id="issuesCount">0</h3>
+                    <p>Issues Found</p>
+                </div>
+                <div class="stat-card success">
+                    <h3 id="fixesCount">0</h3>
+                    <p>Fixes Applied</p>
+                </div>
+            </div>
+
+            <!-- Issues List -->
+            <div class="issues-container">
+                <h3>Detected Issues</h3>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="critical">Critical</button>
+                    <button class="filter-btn" data-filter="important">Important</button>
+                    <button class="filter-btn" data-filter="optional">Optional</button>
+                </div>
+                <div id="issuesList"></div>
+            </div>
+
+            <!-- Actions -->
+            <div class="action-buttons">
+                <button type="button" id="downloadBtn" class="btn-primary">
+                    Download Auto-Fixed Phishlet
+                </button>
+                <button type="button" id="validateBtn" class="btn-secondary">
+                    Open Manus AI Update
+                </button>
+            </div>
+            <p class="action-note">
+                <strong>Auto-Fix:</strong> Quick fixes based on pattern matching.
+                <strong>Manus AI:</strong> Update old phishlet using live-session YAML + HAR evidence.
+            </p>
+        </div>
+
+        <!-- Live Analysis Results Section -->
+        <div class="card live-results-section hidden" id="liveResultsSection">
+            <h2>Live Traffic Analysis Results</h2>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3 id="liveHostsCount">0</h3>
+                    <p>Proxy Hosts</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="liveTokensCount">0</h3>
+                    <p>Auth Tokens</p>
+                </div>
+                <div class="stat-card success">
+                    <h3 id="liveCredsCount">0</h3>
+                    <p>Credential Fields</p>
+                </div>
+            </div>
+
+            <!-- Detected Elements -->
+            <div class="detected-elements">
+                <h3>Detected Configuration</h3>
+
+                <div class="element-section">
+                    <h4>Proxy Hosts</h4>
+                    <div id="liveProxyHosts" class="element-list"></div>
+                </div>
+
+                <div class="element-section">
+                    <h4>Auth Tokens</h4>
+                    <div id="liveAuthTokens" class="element-list"></div>
+                </div>
+
+                <div class="element-section">
+                    <h4>Credentials</h4>
+                    <div id="liveCredentials" class="element-list"></div>
+                </div>
+
+                <div class="element-section hidden" id="liveWarningsSection">
+                    <h4>Warnings</h4>
+                    <div id="liveWarnings" class="element-list warnings"></div>
+                </div>
+
+                <div class="element-section">
+                    <h4>Storage Tokens (Local/Session Storage)</h4>
+                    <div id="liveStorageTokens" class="element-list"></div>
+                    <small>Best-effort: shows keys that look like token/jwt/access/refresh/etc.</small>
+                </div>
+            </div>
+
+            <!-- Baseline Comparison Section -->
+            <div class="comparison-section hidden" id="comparisonSection">
+                <h3>📊 Comparison with Old Phishlet</h3>
+                <div class="comparison-grid">
+                    <div class="comparison-card">
+                        <h4>Missing from Old Phishlet</h4>
+                        <div id="comparisonMissing"></div>
+                    </div>
+                    <div class="comparison-card">
+                        <h4>Extra in Old Phishlet</h4>
+                        <div id="comparisonExtra"></div>
+                    </div>
+                </div>
+                <div class="comparison-recommendations">
+                    <h4>Recommendations</h4>
+                    <div id="comparisonRecommendations"></div>
+                </div>
+            </div>
+
+            <!-- Live Actions -->
+            <div class="action-buttons">
+                <button type="button" id="viewComparisonBtn" class="btn-secondary hidden">
+                    View Comparison with Old Phishlet
+                </button>
+                <button type="button" id="generatePhishletBtn" class="btn-primary btn-large">
+                    Generate Phishlet YAML
+                </button>
+                <button type="button" id="downloadLiveBtn" class="btn-secondary" disabled>
+                    Download Generated Phishlet
+                </button>
+            </div>
+
+            <!-- YAML Preview -->
+            <div class="yaml-preview hidden" id="yamlPreviewSection">
+                <h4>Generated Phishlet Preview</h4>
+                <div id="yamlGenerationInfo" class="info-box hidden"></div>
+                <pre id="yamlPreview"></pre>
+            </div>
+        </div>
+
+        <!-- AI Regeneration Results -->
+        <div class="card validation-section hidden" id="validationSection">
+            <h2>🤖 Manus AI Phishlet Regeneration</h2>
+            <div class="validation-content">
+                <p id="validationMessage"></p>
+                <a id="validationLink" href="#" target="_blank" class="btn-primary btn-large">
+                    🔗 View Analysis in Manus AI
+                </a>
+                <p class="manus-note">
+                    Manus AI will compare the old phishlet, live-session YAML, and HAR evidence
+                    to generate an updated configuration. Click the link above to view the results.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Individual IP Blocklist
+# One IP address per line
+# Lines starting with # or ; are treated as comments
+
+# Example IPs (replace with actual IPs to block)
+# 1.2.3.4
+# 5.6.7.8
+
+# Known malicious IPs
+# 198.51.100.1
+# 203.0.113.1
+
+# Add your own IP addresses below:

@@ -1,0 +1,171 @@
+{{define "body"}}
+<div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
+    <h1 class="page-header">
+        SMS Sending Profiles
+        <small class="text-muted" style="font-size: 14px; margin-left: 10px;">
+            <i class="fa fa-info-circle" data-toggle="tooltip" data-placement="right"
+               title="SMS sending profiles define how GoPhish sends SMS messages. Configure either Twilio (cloud-based) or TextBee (Android device gateway)."></i>
+        </small>
+    </h1>
+    <div id="flashes" class="row"></div>
+
+    <!-- Provider Info Cards -->
+    <div class="row" style="margin-bottom: 15px;">
+        <div class="col-md-6">
+            <div class="panel panel-info">
+                <div class="panel-heading">
+                    <h4 class="panel-title"><i class="fa fa-cloud"></i> Twilio (Cloud SMS)</h4>
+                </div>
+                <div class="panel-body" style="font-size: 13px;">
+                    <p>Cloud-based SMS gateway. Requires Account SID and Auth Token from <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer">Twilio Console</a>.</p>
+                    <span class="label label-success">Reliable</span>
+                    <span class="label label-warning">Paid per SMS</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="panel panel-success">
+                <div class="panel-heading">
+                    <h4 class="panel-title"><i class="fa fa-android"></i> TextBee (Android Gateway)</h4>
+                </div>
+                <div class="panel-body" style="font-size: 13px;">
+                    <p>Uses your Android phone as SMS gateway. Get API key from <a href="https://textbee.dev" target="_blank" rel="noopener noreferrer">textbee.dev</a>.</p>
+                    <span class="label label-primary">Free*</span>
+                    <span class="label label-info">Uses your SIM</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <button type="button" class="btn btn-primary" onclick="edit(-1)" data-toggle="modal" data-backdrop="static"
+            data-target="#modal"><i class="fa fa-plus"></i> New Profile</button>
+    </div>
+    &nbsp;
+    <div id="loading">
+        <i class="fa fa-spinner fa-spin fa-4x"></i>
+    </div>
+    <div id="emptyMessage" class="row" style="display:none;">
+        <div class="alert alert-info">
+            <i class="fa fa-lightbulb-o"></i> No profiles created yet. Create a sending profile to start sending SMS campaigns!
+        </div>
+    </div>
+    <div class="row">
+        <table id="profileTable" class="table" style="display:none;">
+            <thead>
+                <tr>
+                    <th class="col-md-4">Name</th>
+                    <th>Provider</th>
+                    <th>Last Modified Date</th>
+                    <th class="col-md-2 no-sort"></th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+</div>
+<!-- Modal -->
+<div class="modal fade" id="modal" tabindex="-1" role="dialog" aria-labelledby="modalLabel">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <!-- New Template Modal -->
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" onclick="dismiss()"><span
+                        aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="profileModalLabel">New Sending Profile</h4>
+            </div>
+            <div class="modal-body">
+                <div class="row" id="modal.flashes"></div>
+                <form>
+                    <div class="form-group">
+                        <label class="control-label" for="name">Name: <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" placeholder="e.g., My TextBee Profile" id="name" autofocus required />
+                        <p class="help-block" style="font-size: 12px; color: #888;">A friendly name to identify this profile</p>
+
+                        <label class="control-label" for="provider">SMS Provider: <span class="text-danger">*</span> <i class="fa fa-question-circle"
+                                data-toggle="tooltip" data-placement="right" title="Twilio: Cloud-based, requires paid account. TextBee: Free, uses your Android phone as gateway."></i></label>
+                        <select class="form-control" id="provider" onchange="toggleProviderFields()">
+                            <option value="twilio">Twilio (Cloud)</option>
+                            <option value="textbee">TextBee (Android Gateway)</option>
+                        </select>
+
+                        <!-- Provider indicator badge -->
+                        <div id="provider_badge" style="margin: 10px 0;">
+                            <span id="twilio_badge" class="label label-info"><i class="fa fa-cloud"></i> Cloud-based SMS delivery</span>
+                            <span id="textbee_badge" class="label label-success" style="display:none;"><i class="fa fa-android"></i> Android phone gateway</span>
+                        </div>
+
+                        <label class="control-label" for="sms_from">SMS From Number: <i class="fa fa-question-circle"
+                                data-toggle="tooltip" data-placement="right" title="The phone number that will appear as the sender. For Twilio, use your Twilio number. For TextBee, this is your Android phone number."></i></label>
+                        <input type="text" class="form-control" placeholder="+12025550147" id="sms_from" />
+                        <p class="help-block" style="font-size: 12px; color: #888;">Include country code (e.g., +1 for US)</p>
+
+                        <!-- Twilio Fields -->
+                        <div id="twilio_fields">
+                            <hr style="border-color: #444;">
+                            <h5 style="color: #5bc0de;"><i class="fa fa-cloud"></i> Twilio Configuration</h5>
+                            <label class="control-label" for="account_sid">Account SID: <span class="text-danger">*</span> <i class="fa fa-question-circle"
+                                    data-toggle="tooltip" data-placement="right" title="Find this in your Twilio Console dashboard. Starts with 'AC'."></i></label>
+                            <input type="text" class="form-control" placeholder="ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" id="account_sid" />
+
+                            <label class="control-label" for="auth_token">Auth Token: <span class="text-danger">*</span> <i class="fa fa-question-circle"
+                                    data-toggle="tooltip" data-placement="right" title="Your Twilio Auth Token. Keep this secret!"></i></label>
+                            <input type="password" class="form-control" placeholder="Your Auth Token (hidden for security)" id="auth_token" />
+
+                            <div class="alert alert-info" style="margin-top: 10px; font-size: 12px;">
+                                <i class="fa fa-external-link"></i> Get your credentials from <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer">console.twilio.com</a>
+                            </div>
+                        </div>
+
+                        <!-- TextBee Fields -->
+                        <div id="textbee_fields" style="display:none;">
+                            <hr style="border-color: #444;">
+                            <h5 style="color: #5cb85c;"><i class="fa fa-android"></i> TextBee Configuration</h5>
+                            <label class="control-label" for="textbee_api_key">API Key: <span class="text-danger">*</span> <i class="fa fa-question-circle"
+                                    data-toggle="tooltip" data-placement="right" title="Your TextBee API key from the textbee.dev dashboard after registering your device."></i></label>
+                            <input type="password" class="form-control" placeholder="Your TextBee API Key" id="textbee_api_key" />
+
+                            <label class="control-label" for="textbee_device_id">Device ID: <span class="text-danger">*</span> <i class="fa fa-question-circle"
+                                    data-toggle="tooltip" data-placement="right" title="The unique ID of your registered Android device. Found in your TextBee dashboard."></i></label>
+                            <input type="text" class="form-control" placeholder="e.g., abc123-def456-..." id="textbee_device_id" />
+
+                            <div class="alert alert-success" style="margin-top: 10px; font-size: 12px;">
+                                <i class="fa fa-info-circle"></i> <strong>Setup:</strong> Install the TextBee app on your Android, register at <a href="https://textbee.dev" target="_blank" rel="noopener noreferrer">textbee.dev</a>, and copy your API key and Device ID here.
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" data-dismiss="modal" class="btn btn-default" onclick="dismiss()">Cancel</button>
+                <button type="button" class="btn btn-primary" id="modalSubmit">
+                    <i class="fa fa-save"></i> Save Profile
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}} {{define "scripts"}}
+<script src="/js/dist/app/sms_sending_profiles.min.js"></script>
+<script>
+// Enhanced provider toggle with badge update
+var originalToggle = toggleProviderFields;
+toggleProviderFields = function() {
+    originalToggle();
+    var provider = $("#provider").val();
+    if (provider === "textbee") {
+        $("#twilio_badge").hide();
+        $("#textbee_badge").show();
+    } else {
+        $("#twilio_badge").show();
+        $("#textbee_badge").hide();
+    }
+};
+
+$(document).ready(function() {
+    // Initialize tooltips
+    $('[data-toggle="tooltip"]').tooltip();
+});
+</script>
+{{end}}

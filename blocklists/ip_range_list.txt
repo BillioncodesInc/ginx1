@@ -1,0 +1,49 @@
+# IP Range Blocklist (CIDR notation)
+# One IP range per line in CIDR format
+# Lines starting with # or ; are treated as comments
+
+# Example ranges (replace with your actual ranges to block)
+# Private networks (optional - for testing)
+# 10.0.0.0/8
+# 172.16.0.0/12
+# 192.168.0.0/16
+
+# Cloud provider ranges (example - customize as needed)
+# 35.190.0.0/16
+# 52.0.0.0/8       # Amazon AWS
+# 40.74.0.0/16     # Microsoft Azure
+
+# Known security research ranges
+# 192.0.2.0/24     # TEST-NET-1
+
+
+# Add your own IP ranges below:
+
+# ---- BEGIN: well-known crawler IP ranges (added 2025-11-05) ----
+# NOTE: These CIDR blocks are commonly associated with major web crawlers
+# and large platform providers. IP ownership and ranges change over time.
+# Verify each block (for example via whois/ASN lookups or provider docs) before
+# relying on them in production. Consider using ASN-based lookups (e.g., AS15169
+# for Google, AS8075 for Microsoft) for broader coverage.
+
+# Google (commonly seen Googlebot ranges)
+64.233.160.0/19
+66.249.64.0/19 
+72.14.192.0/18 
+74.125.0.0/16  
+209.85.128.0/17
+216.239.32.0/19
+
+# Microsoft / Bing (representative Microsoft-owned ranges)
+13.107.6.0/24
+13.107.9.0/24
+40.76.0.0/14
+40.77.0.0/16
+
+# Facebook (Meta)
+31.13.64.0/18  
+69.63.176.0/20 
+157.240.0.0/16 
+185.60.216.0/22
+
+

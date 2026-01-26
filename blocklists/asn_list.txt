@@ -1,0 +1,18 @@
+# ASN Blocklist
+# One ASN per line. Can use "AS" prefix or just the number.
+# Lines starting with # or ; are treated as comments
+
+# Example ASNs (replace with your actual ASNs to block)
+
+AS15169
+AS32934
+AS8075
+AS14618
+AS16509
+AS13335
+AS16276
+AS45102
+AS24940
+AS9009
+# Add your own ASNs below:
+
