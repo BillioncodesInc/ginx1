@@ -78,5 +78,3 @@ gophish/gophish_template.key
 # Build directories for subprojects
 domainhunterpro/dist/
 domainhunterpro/.next/
-profginx
-Archive.zip
