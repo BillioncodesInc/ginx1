@@ -53,10 +53,11 @@
                         autofocus />
                 </div>
                 <div class="form-group">
+                    <label for="csvupload" class="sr-only">Bulk Import Users CSV File</label>
                     <span class="btn btn-danger btn-file" data-toggle="tooltip" data-placement="right"
                         title="Supports CSV files" id="fileUpload">
                         <i class="fa fa-plus"></i> Bulk Import Users
-                        <input type="file" id="csvupload" multiple>
+                        <input type="file" id="csvupload" multiple title="Select CSV file to import users" aria-label="Bulk Import Users CSV File">
                     </span>
                     <span id="csv-template" class="text-muted small">
                         <i class="fa fa-file-excel-o"></i> Download CSV Template</span>

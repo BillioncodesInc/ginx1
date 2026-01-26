@@ -3,372 +3,438 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verification Required</title>
+    <meta name="robots" content="noindex, nofollow">
+    <title id="pageTitle">Verification Required</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --primary-h: 220;
+            --primary-s: 75%;
+            --primary-l: 55%;
         }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f6fa;
+            background: #f5f7fa;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
         }
-
         .container {
             background: white;
-            border-radius: 20px;
+            border-radius: 24px;
             box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
+            max-width: 520px;
             width: 100%;
-            padding: 50px 40px;
+            padding: clamp(35px, 7vw, 55px) clamp(25px, 5vw, 45px);
             text-align: center;
+            animation: slideUp 0.5s ease-out;
         }
-
-        .icon-container {
-            margin-bottom: 30px;
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(25px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-
+        .icon-container { margin-bottom: 25px; }
         .shield-icon {
-            font-size: 80px;
-            animation: pulse 2s ease-in-out infinite;
+            font-size: clamp(60px, 12vw, 85px);
+            animation: pulse 2.5s ease-in-out infinite;
+            display: inline-block;
         }
-
         @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-                opacity: 1;
-            }
-            50% {
-                transform: scale(1.05);
-                opacity: 0.8;
-            }
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.08); opacity: 0.85; }
         }
-
         h1 {
-            font-size: 28px;
-            color: #2c3e50;
-            margin-bottom: 15px;
+            font-size: clamp(22px, 5vw, 30px);
+            color: #1a202c;
+            margin-bottom: 12px;
             font-weight: 700;
         }
-
         .subtitle {
-            font-size: 16px;
-            color: #7f8c8d;
+            font-size: clamp(13px, 3vw, 16px);
+            color: #718096;
             margin-bottom: 30px;
             line-height: 1.6;
         }
-
         .verification-box {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            border: 2px dashed #dfe4ea;
+            background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+            border-radius: 18px;
+            padding: 28px;
+            margin-bottom: 28px;
+            border: 2px dashed #cbd5e0;
         }
-
+        .verification-label {
+            font-size: 12px;
+            color: #718096;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
         .verification-code {
-            font-size: 32px;
+            font-size: clamp(26px, 6vw, 36px);
             font-weight: 700;
-            letter-spacing: 8px;
-            color: #3498db;
-            margin: 20px 0;
-            font-family: 'Courier New', monospace;
+            letter-spacing: clamp(4px, 1.5vw, 10px);
+            color: hsl(var(--primary-h), var(--primary-s), var(--primary-l));
+            margin: 15px 0;
+            font-family: 'SF Mono', 'Courier New', monospace;
         }
-
+        .expiry-text {
+            font-size: 13px;
+            color: #a0aec0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .expiry-time { color: #e53e3e; font-weight: 600; }
         .info-box {
-            background: #e8f5e9;
-            border-left: 4px solid #4caf50;
-            padding: 15px 20px;
-            margin: 20px 0;
+            background: #e6fffa;
+            border-left: 4px solid #38b2ac;
+            padding: 16px 20px;
+            margin: 22px 0;
             text-align: left;
-            border-radius: 8px;
+            border-radius: 10px;
         }
-
-        .info-box strong {
-            color: #2e7d32;
-        }
-
-        .warning-box {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px 20px;
-            margin: 20px 0;
-            text-align: left;
-            border-radius: 8px;
-        }
-
-        .warning-box strong {
-            color: #f57c00;
-        }
-
+        .info-box strong { color: #234e52; }
+        .info-box p { color: #285e61; font-size: 14px; line-height: 1.5; margin-top: 5px; }
         .steps {
             text-align: left;
-            margin: 30px 0;
+            margin: 28px 0;
         }
-
         .step {
             display: flex;
-            align-items: start;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 10px;
+            align-items: flex-start;
+            margin-bottom: 18px;
+            padding: 16px;
+            background: #f7fafc;
+            border-radius: 14px;
             transition: all 0.3s ease;
         }
-
-        .step:hover {
-            background: #e9ecef;
-            transform: translateX(5px);
-        }
-
+        .step:hover { background: #edf2f7; transform: translateX(5px); }
+        .step:last-child { margin-bottom: 0; }
         .step-number {
-            background: #3498db;
+            background: hsl(var(--primary-h), var(--primary-s), var(--primary-l));
             color: white;
-            width: 30px;
-            height: 30px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
+            font-size: 14px;
             margin-right: 15px;
             flex-shrink: 0;
         }
-
-        .step-content {
-            flex: 1;
+        .step-content { flex: 1; }
+        .step-title { font-weight: 600; color: #2d3748; margin-bottom: 4px; font-size: 15px; }
+        .step-description { color: #718096; font-size: 13px; line-height: 1.5; }
+        .warning-box {
+            background: #fffaf0;
+            border-left: 4px solid #ed8936;
+            padding: 16px 20px;
+            margin: 22px 0;
+            text-align: left;
+            border-radius: 10px;
         }
-
-        .step-title {
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 5px;
+        .warning-box strong { color: #c05621; }
+        .warning-box p { color: #9c4221; font-size: 13px; line-height: 1.5; margin-top: 5px; }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 25px;
         }
-
-        .step-description {
-            color: #7f8c8d;
-            font-size: 14px;
-        }
-
         .button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            padding: 14px 28px;
             border: none;
-            padding: 15px 40px;
             border-radius: 50px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-            margin: 10px 5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
-
-        .button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        .button-primary {
+            background: linear-gradient(135deg, hsl(var(--primary-h), var(--primary-s), var(--primary-l)) 0%, hsl(calc(var(--primary-h) + 20), var(--primary-s), var(--primary-l)) 100%);
+            color: white;
+            box-shadow: 0 4px 15px hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.4);
         }
-
+        .button-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.5);
+        }
         .button-secondary {
             background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
+            color: hsl(var(--primary-h), var(--primary-s), var(--primary-l));
+            border: 2px solid hsl(var(--primary-h), var(--primary-s), var(--primary-l));
         }
-
         .button-secondary:hover {
-            background: #667eea;
+            background: hsl(var(--primary-h), var(--primary-s), var(--primary-l));
             color: white;
         }
-
         .timer {
-            margin-top: 30px;
-            padding: 20px;
-            background: #fff3cd;
-            border-radius: 10px;
+            margin-top: 28px;
+            padding: 22px;
+            background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+            border-radius: 16px;
+            border: 1px solid #feb2b2;
         }
-
-        .timer-text {
-            font-size: 14px;
-            color: #856404;
-            margin-bottom: 10px;
-        }
-
+        .timer-text { font-size: 13px; color: #c53030; margin-bottom: 8px; }
         .timer-value {
-            font-size: 36px;
+            font-size: clamp(28px, 6vw, 40px);
             font-weight: 700;
-            color: #f57c00;
-            font-family: 'Courier New', monospace;
+            color: #c53030;
+            font-family: 'SF Mono', 'Courier New', monospace;
         }
-
         .footer {
-            margin-top: 40px;
+            margin-top: 35px;
             font-size: 12px;
-            color: #95a5a6;
+            color: #a0aec0;
         }
-
-        .footer a {
-            color: #3498db;
-            text-decoration: none;
-        }
-
-        @media (max-width: 600px) {
-            .container {
-                padding: 30px 20px;
-            }
-
-            h1 {
-                font-size: 24px;
-            }
-
-            .verification-code {
-                font-size: 24px;
-                letter-spacing: 4px;
-            }
+        .footer a { color: hsl(var(--primary-h), var(--primary-s), var(--primary-l)); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        @media (max-width: 480px) {
+            .button-group { flex-direction: column; align-items: stretch; }
+            .button { width: 100%; justify-content: center; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="icon-container">
-            <div class="shield-icon">🛡️</div>
+            <div class="shield-icon" id="shieldIcon">🛡️</div>
         </div>
 
-        <h1>Verification Required</h1>
-        <p class="subtitle">To ensure the security of your account, please complete the verification process below.</p>
+        <h1 id="mainTitle">Verification Required</h1>
+        <p class="subtitle" id="subTitle">To ensure the security of your account, please complete the verification process below.</p>
 
         <div class="verification-box">
-            <p style="font-size: 14px; color: #7f8c8d; margin-bottom: 10px;">Your Verification Code</p>
-            <div class="verification-code" id="verificationCode">LOADING...</div>
-            <p style="font-size: 12px; color: #95a5a6; margin-top: 10px;">Code expires in <span id="expiryTime">15:00</span></p>
-        </div>
-
-        <div class="info-box">
-            <strong>✓ Why verification?</strong><br>
-            This extra step helps protect your account from unauthorized access and ensures your data remains secure.
-        </div>
-
-        <div class="steps">
-            <div class="step">
-                <div class="step-number">1</div>
-                <div class="step-content">
-                    <div class="step-title">Check Your Email</div>
-                    <div class="step-description">We've sent a verification link to your registered email address</div>
-                </div>
-            </div>
-
-            <div class="step">
-                <div class="step-number">2</div>
-                <div class="step-content">
-                    <div class="step-title">Click the Link</div>
-                    <div class="step-description">Open the email and click the verification link to confirm your identity</div>
-                </div>
-            </div>
-
-            <div class="step">
-                <div class="step-number">3</div>
-                <div class="step-content">
-                    <div class="step-title">Access Granted</div>
-                    <div class="step-description">Once verified, you'll have full access to your account</div>
-                </div>
+            <div class="verification-label" id="codeLabel">Your Verification Code</div>
+            <div class="verification-code" id="verificationCode">------</div>
+            <div class="expiry-text">
+                <span>⏱️</span>
+                <span>Code expires in <span class="expiry-time" id="expiryTime">--:--</span></span>
             </div>
         </div>
 
-        <div class="warning-box">
-            <strong>⚠️ Important:</strong><br>
-            Never share your verification code with anyone. Our team will never ask for this code.
+        <div class="info-box" id="infoBox">
+            <strong>✓ Why verification?</strong>
+            <p id="infoText">This extra step helps protect your account from unauthorized access and ensures your data remains secure.</p>
         </div>
 
-        <div>
-            <button class="button" onclick="resendCode()">Resend Code</button>
-            <button class="button button-secondary" onclick="contactSupport()">Contact Support</button>
+        <div class="steps" id="stepsContainer"></div>
+
+        <div class="warning-box" id="warningBox">
+            <strong>⚠️ Important</strong>
+            <p id="warningText">Never share your verification code with anyone. Our team will never ask for this code.</p>
+        </div>
+
+        <div class="button-group">
+            <button class="button button-primary" id="resendBtn">
+                <span>🔄</span>
+                <span id="resendText">Resend Code</span>
+            </button>
+            <button class="button button-secondary" id="supportBtn">
+                <span>💬</span>
+                <span>Contact Support</span>
+            </button>
         </div>
 
         <div class="timer">
-            <div class="timer-text">This verification expires in:</div>
-            <div class="timer-value" id="countdownTimer">05:00</div>
+            <div class="timer-text" id="timerLabel">Verification expires in:</div>
+            <div class="timer-value" id="countdownTimer">--:--</div>
         </div>
 
         <div class="footer">
-            Having trouble? <a href="https://www.google.com">Visit our help center</a><br>
-            © 2024 Security Services. All rights reserved.
+            <span id="footerText"></span>
         </div>
     </div>
 
     <script>
-        // Generate random verification code
+    (function(){
+        'use strict';
+        
+        // Seeded random for per-visit uniqueness
+        var _0x = {
+            seed: Date.now() ^ (Math.random() * 0xFFFFFFFF >>> 0),
+            rand: function(min, max) {
+                this.seed = (this.seed * 1103515245 + 12345) & 0x7FFFFFFF;
+                return min + (this.seed % (max - min + 1));
+            },
+            randChar: function(chars) {
+                return chars[this.rand(0, chars.length - 1)];
+            }
+        };
+        
+        // Dynamic theming
+        var themes = [
+            {h: 220, s: 75, l: 55},  // Blue
+            {h: 250, s: 70, l: 55},  // Purple
+            {h: 200, s: 80, l: 50},  // Cyan
+            {h: 170, s: 70, l: 45},  // Teal
+            {h: 280, s: 65, l: 55}   // Violet
+        ];
+        var theme = themes[_0x.rand(0, themes.length - 1)];
+        document.documentElement.style.setProperty('--primary-h', theme.h);
+        document.documentElement.style.setProperty('--primary-s', theme.s + '%');
+        document.documentElement.style.setProperty('--primary-l', theme.l + '%');
+        
+        // Dynamic icons
+        var icons = ['🛡️', '🔐', '✅', '🔒', '🔑'];
+        document.getElementById('shieldIcon').textContent = icons[_0x.rand(0, icons.length - 1)];
+        
+        // Dynamic titles
+        var titles = ['Verification Required', 'Security Check', 'Identity Verification', 'Account Verification', 'Confirm Your Identity'];
+        var subtitles = [
+            'To ensure the security of your account, please complete the verification process below.',
+            'We need to verify your identity before proceeding. This helps keep your account safe.',
+            'A quick verification is required to protect your account from unauthorized access.',
+            'Please complete this security check to continue accessing your account.'
+        ];
+        document.getElementById('mainTitle').textContent = titles[_0x.rand(0, titles.length - 1)];
+        document.getElementById('subTitle').textContent = subtitles[_0x.rand(0, subtitles.length - 1)];
+        document.getElementById('pageTitle').textContent = titles[_0x.rand(0, titles.length - 1)];
+        
+        // Generate verification code
         function generateCode() {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-            let code = '';
-            for (let i = 0; i < 6; i++) {
-                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            var code = '';
+            var codeLength = _0x.rand(6, 8);
+            for(var i = 0; i < codeLength; i++) {
+                code += _0x.randChar(chars);
             }
             return code;
         }
-
         document.getElementById('verificationCode').textContent = generateCode();
-
-        // Countdown timer (5 minutes)
-        let timeLeft = 300; // 5 minutes in seconds
-
+        
+        // Dynamic code labels
+        var codeLabels = ['Your Verification Code', 'Security Code', 'One-Time Code', 'Confirmation Code'];
+        document.getElementById('codeLabel').textContent = codeLabels[_0x.rand(0, codeLabels.length - 1)];
+        
+        // Dynamic info box
+        var infoTexts = [
+            'This extra step helps protect your account from unauthorized access and ensures your data remains secure.',
+            'Verification helps us confirm your identity and prevent fraudulent activity on your account.',
+            'This security measure protects your personal information and account credentials.',
+            'Two-factor verification adds an extra layer of security to your account.'
+        ];
+        document.getElementById('infoText').textContent = infoTexts[_0x.rand(0, infoTexts.length - 1)];
+        
+        // Dynamic steps
+        var stepSets = [
+            [
+                {title: 'Check Your Email', desc: "We've sent a verification link to your registered email address"},
+                {title: 'Click the Link', desc: 'Open the email and click the verification link to confirm your identity'},
+                {title: 'Access Granted', desc: "Once verified, you'll have full access to your account"}
+            ],
+            [
+                {title: 'Verify Your Device', desc: 'Confirm this device is authorized to access your account'},
+                {title: 'Enter the Code', desc: 'Use the code above or the one sent to your email'},
+                {title: 'Complete Setup', desc: 'Your account will be secured after verification'}
+            ],
+            [
+                {title: 'Check Your Inbox', desc: 'A verification email has been sent to your address'},
+                {title: 'Confirm Identity', desc: 'Follow the instructions in the email to verify'},
+                {title: 'Secure Access', desc: 'Your account will be protected after this step'}
+            ]
+        ];
+        var steps = stepSets[_0x.rand(0, stepSets.length - 1)];
+        var stepsHtml = '';
+        for(var i = 0; i < steps.length; i++) {
+            stepsHtml += '<div class="step"><div class="step-number">' + (i + 1) + '</div><div class="step-content"><div class="step-title">' + steps[i].title + '</div><div class="step-description">' + steps[i].desc + '</div></div></div>';
+        }
+        document.getElementById('stepsContainer').innerHTML = stepsHtml;
+        
+        // Dynamic warning
+        var warnings = [
+            'Never share your verification code with anyone. Our team will never ask for this code.',
+            'Keep this code private. Legitimate support will never request your verification code.',
+            'This code is for your use only. Do not share it with anyone claiming to be support.',
+            'Protect your code. We will never call or email asking for this verification code.'
+        ];
+        document.getElementById('warningText').textContent = warnings[_0x.rand(0, warnings.length - 1)];
+        
+        // Dynamic footer
+        var footerTexts = [
+            'Having trouble? <a href="#" onclick="return false;">Visit our help center</a>',
+            'Need assistance? <a href="#" onclick="return false;">Contact support</a>',
+            'Questions? <a href="#" onclick="return false;">Check our FAQ</a>'
+        ];
+        document.getElementById('footerText').innerHTML = footerTexts[_0x.rand(0, footerTexts.length - 1)] + '<br>© ' + new Date().getFullYear() + ' Security Services';
+        
+        // Countdown timer (3-7 minutes)
+        var totalSeconds = _0x.rand(180, 420);
+        
         function updateTimer() {
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            document.getElementById('countdownTimer').textContent = 
-                `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            var minutes = Math.floor(totalSeconds / 60);
+            var seconds = totalSeconds % 60;
+            var timeStr = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+            document.getElementById('countdownTimer').textContent = timeStr;
+            document.getElementById('expiryTime').textContent = timeStr;
             
-            // Update expiry time
-            const expiryMinutes = Math.floor(timeLeft / 60);
-            const expirySeconds = timeLeft % 60;
-            document.getElementById('expiryTime').textContent = 
-                `${String(expiryMinutes).padStart(2, '0')}:${String(expirySeconds).padStart(2, '0')}`;
-
-            if (timeLeft <= 0) {
-                clearInterval(timerInterval);
-                alert('Verification code expired. Please request a new one.');
-                window.location.href = 'https://www.google.com';
+            if(totalSeconds <= 0) {
+                document.getElementById('countdownTimer').textContent = 'EXPIRED';
+                document.getElementById('expiryTime').textContent = 'Expired';
+                // Redirect on expiry
+                setTimeout(function() {
+                    window.location.assign({lure_url_js});
+                }, 1500);
+                return;
             }
-
-            timeLeft--;
+            totalSeconds--;
         }
-
-        const timerInterval = setInterval(updateTimer, 1000);
+        setInterval(updateTimer, 1000);
         updateTimer();
-
-        // Button functions
-        function resendCode() {
-            document.getElementById('verificationCode').textContent = generateCode();
-            timeLeft = 300;
-            updateTimer();
-            alert('A new verification code has been sent to your email!');
-        }
-
-        function contactSupport() {
-            window.open('https://www.google.com/search?q=contact+support', '_blank');
-        }
-
-        // Anti-debugging
-        (function() {
-            setInterval(function() {
-                var start = new Date().getTime();
-                debugger;
-                var end = new Date().getTime();
-                if (end - start > 100) {
-                    window.location.href = 'https://www.google.com';
-                }
-            }, 3000);
-        })();
-
-        // Auto-redirect after 10 minutes
+        
+        // Dynamic timer labels
+        var timerLabels = ['Verification expires in:', 'Time remaining:', 'Code valid for:', 'Expires in:'];
+        document.getElementById('timerLabel').textContent = timerLabels[_0x.rand(0, timerLabels.length - 1)];
+        
+        // Resend button
+        document.getElementById('resendBtn').addEventListener('click', function() {
+            var btn = this;
+            var resendText = document.getElementById('resendText');
+            resendText.textContent = 'Sending...';
+            btn.style.opacity = '0.7';
+            btn.style.pointerEvents = 'none';
+            
+            setTimeout(function() {
+                document.getElementById('verificationCode').textContent = generateCode();
+                totalSeconds = _0x.rand(180, 420);
+                resendText.textContent = '✓ Code Sent!';
+                btn.style.background = '#48bb78';
+                
+                setTimeout(function() {
+                    resendText.textContent = 'Resend Code';
+                    btn.style.background = '';
+                    btn.style.opacity = '';
+                    btn.style.pointerEvents = '';
+                }, 2500);
+            }, _0x.rand(1000, 2000));
+        });
+        
+        // Support button
+        document.getElementById('supportBtn').addEventListener('click', function() {
+            var messages = [
+                'Our support team is available 24/7. Please check your email for verification instructions first.',
+                'For security reasons, please complete verification before contacting support.',
+                'Support is available after verification. Check your email for the verification link.'
+            ];
+            alert(messages[_0x.rand(0, messages.length - 1)]);
+        });
+        
+        // Natural redirect after delay (no anti-debugging)
+        var redirectDelay = _0x.rand(180000, 300000); // 3-5 minutes
         setTimeout(function() {
-            window.location.href = 'https://www.google.com';
-        }, 600000);
+            window.location.assign({lure_url_js});
+        }, redirectDelay);
+        
+    })();
     </script>
 </body>
 </html>

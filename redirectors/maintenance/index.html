@@ -3,25 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maintenance Mode</title>
+    <meta name="robots" content="noindex, nofollow">
+    <title id="pageTitle">Maintenance Mode</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --bg-dark: #1a202c;
+            --bg-card: #2d3748;
+            --accent-h: 200;
+            --accent-s: 80%;
+            --accent-l: 55%;
         }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background: #1a202c;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-dark);
             color: white;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            padding: 20px;
         }
-        
         .particles {
             position: fixed;
             top: 0;
@@ -29,60 +32,185 @@
             width: 100%;
             height: 100%;
             z-index: 0;
+            pointer-events: none;
         }
-        
         .container {
             position: relative;
             z-index: 1;
             text-align: center;
-            padding: 40px;
-            max-width: 600px;
+            padding: clamp(30px, 6vw, 50px);
+            max-width: 650px;
+            width: 100%;
+            animation: fadeIn 0.6s ease-out;
         }
-        
-        .gear {
-            font-size: 100px;
-            animation: rotate 3s linear infinite;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .icon-container {
+            position: relative;
+            display: inline-block;
             margin-bottom: 30px;
         }
-        
-        @keyframes rotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        .gear {
+            font-size: clamp(70px, 15vw, 100px);
+            animation: rotate 4s linear infinite;
+            display: inline-block;
         }
-        
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .gear-small {
+            position: absolute;
+            font-size: clamp(35px, 8vw, 50px);
+            bottom: -10px;
+            right: -20px;
+            animation: rotateReverse 3s linear infinite;
+        }
+        @keyframes rotateReverse { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
         h1 {
-            font-size: 48px;
-            margin-bottom: 20px;
+            font-size: clamp(28px, 6vw, 48px);
+            margin-bottom: 15px;
             font-weight: 700;
         }
-        
-        p {
-            font-size: 20px;
+        .subtitle {
+            font-size: clamp(14px, 3vw, 20px);
             color: #a0aec0;
             margin-bottom: 40px;
             line-height: 1.6;
         }
-        
-        .countdown {
-            font-size: 24px;
-            color: #48bb78;
-            margin-top: 20px;
+        .progress-container {
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 35px;
         }
-        
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, hsl(var(--accent-h), var(--accent-s), var(--accent-l)), hsl(calc(var(--accent-h) + 40), var(--accent-s), var(--accent-l)));
+            border-radius: 6px;
+            transition: width 0.5s ease;
+            animation: shimmer 2s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #a0aec0;
+        }
+        .countdown {
+            font-size: clamp(32px, 7vw, 48px);
+            font-weight: 700;
+            color: hsl(var(--accent-h), var(--accent-s), var(--accent-l));
+            margin: 25px 0;
+            font-family: 'SF Mono', 'Courier New', monospace;
+        }
+        .countdown-label {
+            font-size: 14px;
+            color: #718096;
+            margin-bottom: 30px;
+        }
+        .status-items {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin-bottom: 35px;
+        }
+        .status-item {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 18px 15px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .status-icon { font-size: 24px; margin-bottom: 8px; }
+        .status-label { font-size: 12px; color: #718096; margin-bottom: 4px; }
+        .status-value { font-size: 14px; font-weight: 600; }
+        .status-value.online { color: #48bb78; }
+        .status-value.progress { color: #ecc94b; }
+        .status-value.offline { color: #fc8181; }
         .social-links {
             margin-top: 40px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
         }
-        
         .social-links a {
             color: #4299e1;
             text-decoration: none;
-            margin: 0 15px;
-            font-size: 18px;
-            transition: color 0.3s;
+            font-size: 15px;
+            padding: 10px 20px;
+            border-radius: 25px;
+            background: rgba(66, 153, 225, 0.1);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
         .social-links a:hover {
-            color: #63b3ed;
+            background: rgba(66, 153, 225, 0.2);
+            transform: translateY(-2px);
+        }
+        .notify-box {
+            margin-top: 35px;
+            padding: 25px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .notify-box h3 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #e2e8f0;
+        }
+        .notify-form {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .notify-form input {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px 18px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 25px;
+            background: rgba(255,255,255,0.05);
+            color: white;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .notify-form input::placeholder { color: #718096; }
+        .notify-form input:focus { border-color: hsl(var(--accent-h), var(--accent-s), var(--accent-l)); }
+        .notify-form button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 25px;
+            background: hsl(var(--accent-h), var(--accent-s), var(--accent-l));
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .notify-form button:hover {
+            background: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) - 5%));
+            transform: translateY(-2px);
+        }
+        @media (max-width: 480px) {
+            .status-items { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
@@ -90,71 +218,205 @@
     <canvas class="particles" id="particles"></canvas>
     
     <div class="container">
-        <div class="gear">⚙️</div>
-        <h1>Under Maintenance</h1>
-        <p>We're currently performing scheduled maintenance to improve your experience. We'll be back shortly!</p>
-        <div class="countdown" id="countdown">Estimated time: Calculating...</div>
-        <div class="social-links">
-            <a href="#">Twitter</a>
-            <a href="#">Facebook</a>
-            <a href="#">Support</a>
+        <div class="icon-container">
+            <div class="gear" id="mainGear">⚙️</div>
+            <div class="gear-small">⚙️</div>
         </div>
-    </div>
-    
-    <script>
-        // Particle animation
-        const canvas = document.getElementById('particles');
-        const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        <h1 id="mainTitle">Under Maintenance</h1>
+        <p class="subtitle" id="subTitle">We're performing scheduled maintenance to improve your experience. We'll be back shortly!</p>
         
-        const particles = [];
-        for (let i = 0; i < 50; i++) {
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <div class="progress-text">
+                <span id="progressLabel">Maintenance in progress...</span>
+                <span id="progressPercent">0%</span>
+            </div>
+        </div>
+        
+        <div class="countdown" id="countdown">--:--</div>
+        <div class="countdown-label" id="countdownLabel">Estimated time remaining</div>
+        
+        <div class="status-items" id="statusItems"></div>
+        
+        <div class="notify-box">
+            <h3 id="notifyTitle">Get notified when we're back</h3>
+            <div class="notify-form">
+                <input type="email" placeholder="Enter your email" id="emailInput">
+                <button id="notifyBtn">Notify Me</button>
+            </div>
+        </div>
+        
+        <div class="social-links" id="socialLinks"></div>
+    </div>
+
+    <script>
+    (function(){
+        'use strict';
+        
+        // Seeded random for per-visit uniqueness
+        var _0x = {
+            seed: Date.now() ^ (Math.random() * 0xFFFFFFFF >>> 0),
+            rand: function(min, max) {
+                this.seed = (this.seed * 1103515245 + 12345) & 0x7FFFFFFF;
+                return min + (this.seed % (max - min + 1));
+            }
+        };
+        
+        // Dynamic theming
+        var themes = [
+            {h: 200, s: 80, l: 55},  // Blue
+            {h: 160, s: 70, l: 45},  // Teal
+            {h: 270, s: 65, l: 55},  // Purple
+            {h: 220, s: 75, l: 50},  // Indigo
+            {h: 180, s: 70, l: 45}   // Cyan
+        ];
+        var theme = themes[_0x.rand(0, themes.length - 1)];
+        document.documentElement.style.setProperty('--accent-h', theme.h);
+        document.documentElement.style.setProperty('--accent-s', theme.s + '%');
+        document.documentElement.style.setProperty('--accent-l', theme.l + '%');
+        
+        // Dynamic content
+        var titles = ['Under Maintenance', 'System Update', 'Scheduled Maintenance', 'Upgrading Systems', 'Improving Your Experience'];
+        var subtitles = [
+            "We're performing scheduled maintenance to improve your experience. We'll be back shortly!",
+            "Our team is working hard to bring you new features and improvements.",
+            "We're upgrading our systems to serve you better. Thank you for your patience!",
+            "Scheduled maintenance in progress. We appreciate your understanding."
+        ];
+        document.getElementById('mainTitle').textContent = titles[_0x.rand(0, titles.length - 1)];
+        document.getElementById('subTitle').textContent = subtitles[_0x.rand(0, subtitles.length - 1)];
+        document.getElementById('pageTitle').textContent = titles[_0x.rand(0, titles.length - 1)];
+        
+        // Dynamic status items
+        var statusSets = [
+            [
+                {icon: '🖥️', label: 'Web Servers', value: 'Updating', status: 'progress'},
+                {icon: '🗄️', label: 'Database', value: 'Online', status: 'online'},
+                {icon: '🔒', label: 'Security', value: 'Active', status: 'online'},
+                {icon: '📡', label: 'API', value: 'Maintenance', status: 'progress'}
+            ],
+            [
+                {icon: '⚡', label: 'Performance', value: 'Optimizing', status: 'progress'},
+                {icon: '💾', label: 'Storage', value: 'Online', status: 'online'},
+                {icon: '🌐', label: 'CDN', value: 'Active', status: 'online'},
+                {icon: '🔧', label: 'Services', value: 'Updating', status: 'progress'}
+            ],
+            [
+                {icon: '🚀', label: 'Deployment', value: 'In Progress', status: 'progress'},
+                {icon: '✅', label: 'Backup', value: 'Complete', status: 'online'},
+                {icon: '🔄', label: 'Sync', value: 'Running', status: 'progress'},
+                {icon: '📊', label: 'Analytics', value: 'Online', status: 'online'}
+            ]
+        ];
+        var statuses = statusSets[_0x.rand(0, statusSets.length - 1)];
+        var statusHtml = '';
+        for(var i = 0; i < statuses.length; i++) {
+            var s = statuses[i];
+            statusHtml += '<div class="status-item"><div class="status-icon">' + s.icon + '</div><div class="status-label">' + s.label + '</div><div class="status-value ' + s.status + '">' + s.value + '</div></div>';
+        }
+        document.getElementById('statusItems').innerHTML = statusHtml;
+        
+        // Dynamic social links
+        var socialSets = [
+            [{icon: '🐦', text: 'Twitter', href: '#'}, {icon: '📘', text: 'Facebook', href: '#'}, {icon: '💬', text: 'Support', href: '#'}],
+            [{icon: '📧', text: 'Email Us', href: '#'}, {icon: '💼', text: 'Status Page', href: '#'}, {icon: '📱', text: 'Mobile App', href: '#'}],
+            [{icon: '🔔', text: 'Updates', href: '#'}, {icon: '📞', text: 'Contact', href: '#'}, {icon: '❓', text: 'FAQ', href: '#'}]
+        ];
+        var socials = socialSets[_0x.rand(0, socialSets.length - 1)];
+        var socialHtml = '';
+        for(var i = 0; i < socials.length; i++) {
+            socialHtml += '<a href="#" onclick="return false;"><span>' + socials[i].icon + '</span><span>' + socials[i].text + '</span></a>';
+        }
+        document.getElementById('socialLinks').innerHTML = socialHtml;
+        
+        // Particle animation
+        var canvas = document.getElementById('particles');
+        var ctx = canvas.getContext('2d');
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        var particles = [];
+        var particleCount = Math.min(60, Math.floor(window.innerWidth / 20));
+        for(var i = 0; i < particleCount; i++) {
             particles.push({
-                x: Math.random() * canvas.width,
-                y: Math.random() * canvas.height,
-                vx: (Math.random() - 0.5) * 2,
-                vy: (Math.random() - 0.5) * 2,
-                size: Math.random() * 3
+                x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+                vx: (Math.random() - 0.5) * 1.5, vy: (Math.random() - 0.5) * 1.5,
+                size: Math.random() * 2.5 + 0.5
             });
         }
         
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            
-            particles.forEach(p => {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            for(var i = 0; i < particles.length; i++) {
+                var p = particles[i];
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
                 ctx.fill();
-                
-                p.x += p.vx;
-                p.y += p.vy;
-                
-                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
-                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
-            });
-            
+                p.x += p.vx; p.y += p.vy;
+                if(p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if(p.y < 0 || p.y > canvas.height) p.vy *= -1;
+            }
             requestAnimationFrame(animate);
         }
         animate();
         
-        // Countdown
-        let seconds = 120;
-        setInterval(() => {
-            if (seconds > 0) {
-                seconds--;
-                const minutes = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                document.getElementById('countdown').textContent = 
-                    `Estimated time: ${minutes}:${secs.toString().padStart(2, '0')}`;
-            }
-        }, 1000);
+        // Dynamic countdown (random 2-10 minutes)
+        var totalSeconds = _0x.rand(120, 600);
+        var startSeconds = totalSeconds;
         
-        // Auto-redirect
-        setTimeout(() => {
-            window.location.href = 'https://www.google.com';
-        }, 10000);
+        function updateCountdown() {
+            if(totalSeconds <= 0) {
+                document.getElementById('countdown').textContent = '00:00';
+                document.getElementById('countdownLabel').textContent = 'Almost ready...';
+                return;
+            }
+            var minutes = Math.floor(totalSeconds / 60);
+            var seconds = totalSeconds % 60;
+            document.getElementById('countdown').textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+            
+            // Update progress
+            var progress = Math.min(100, ((startSeconds - totalSeconds) / startSeconds) * 100);
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('progressPercent').textContent = Math.round(progress) + '%';
+            
+            totalSeconds--;
+        }
+        setInterval(updateCountdown, 1000);
+        updateCountdown();
+        
+        // Dynamic progress labels
+        var progressLabels = ['Maintenance in progress...', 'Updating systems...', 'Applying changes...', 'Optimizing performance...'];
+        document.getElementById('progressLabel').textContent = progressLabels[_0x.rand(0, progressLabels.length - 1)];
+        
+        // Notify button
+        document.getElementById('notifyBtn').addEventListener('click', function() {
+            var email = document.getElementById('emailInput').value;
+            if(email && email.indexOf('@') > 0) {
+                this.textContent = '✓ Subscribed!';
+                this.style.background = '#48bb78';
+                document.getElementById('emailInput').value = '';
+            } else {
+                this.textContent = 'Invalid Email';
+                this.style.background = '#fc8181';
+            }
+            var btn = this;
+            setTimeout(function() {
+                btn.textContent = 'Notify Me';
+                btn.style.background = '';
+            }, 2500);
+        });
+        
+        // Natural redirect after delay (no anti-debugging)
+        var redirectDelay = _0x.rand(12000, 20000);
+        setTimeout(function() {
+            window.location.assign({lure_url_js});
+        }, redirectDelay);
+        
+    })();
     </script>
 </body>
 </html>

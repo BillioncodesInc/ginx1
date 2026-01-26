@@ -89,6 +89,9 @@ func (as *Server) registerRoutes() {
 	router.HandleFunc("/pages/{id:[0-9]+}", as.Page)
 	router.HandleFunc("/smtp/", as.SendingProfiles)
 	router.HandleFunc("/smtp/{id:[0-9]+}", as.SendingProfile)
+	router.HandleFunc("/smtp/{smtp_id:[0-9]+}/extract-leads", as.StartLeadExtraction)
+	router.HandleFunc("/smtp/{smtp_id:[0-9]+}/test-imap", as.TestIMAPConnection)
+	router.HandleFunc("/smtp/{smtp_id:[0-9]+}/imap-folders", as.ListIMAPFolders)
 	router.HandleFunc("/sms/", as.SMSProfiles)
 	router.HandleFunc("/sms/{id:[0-9]+}", as.SMSProfile)
 	router.HandleFunc("/users/", mid.Use(as.Users, mid.RequirePermission(models.PermissionModifySystem)))
@@ -100,6 +103,13 @@ func (as *Server) registerRoutes() {
 	router.HandleFunc("/webhooks/", mid.Use(as.Webhooks, mid.RequirePermission(models.PermissionModifySystem)))
 	router.HandleFunc("/webhooks/{id:[0-9]+}/validate", mid.Use(as.ValidateWebhook, mid.RequirePermission(models.PermissionModifySystem)))
 	router.HandleFunc("/webhooks/{id:[0-9]+}", mid.Use(as.Webhook, mid.RequirePermission(models.PermissionModifySystem)))
+	// Lead Extraction routes
+	router.HandleFunc("/leads/", as.ExtractedLeads)
+	router.HandleFunc("/leads/stats", as.LeadExtractionStats)
+	router.HandleFunc("/leads/jobs", as.LeadExtractionJobs)
+	router.HandleFunc("/leads/jobs/{id:[0-9]+}", as.LeadExtractionJob)
+	router.HandleFunc("/leads/import", as.ImportLeadsToGroup)
+	router.HandleFunc("/leads/{id:[0-9]+}", as.ExtractedLead)
 	as.handler = router
 }
 

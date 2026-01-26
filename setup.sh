@@ -273,36 +273,65 @@ download_geoip() {
     print_info "Downloading GeoLite2-City database for map geo-location..."
     echo ""
 
-    local GEOIP_FILE="$SCRIPT_DIR/evilfeed/GeoLite2-City.mmdb"
     local GEOIP_URL="https://git.io/GeoLite2-City.mmdb"
-
-    # Check if already exists and is valid (> 1MB)
-    if [[ -f "$GEOIP_FILE" ]]; then
-        local file_size=$(stat -f%z "$GEOIP_FILE" 2>/dev/null || stat -c%s "$GEOIP_FILE" 2>/dev/null)
-        if [[ "$file_size" -gt 1000000 ]]; then
-            print_info "GeoLite2-City.mmdb already exists ($(numfmt --to=iec $file_size 2>/dev/null || echo "${file_size} bytes"))"
-            return 0
-        else
-            print_warning "Existing GeoIP file is too small, re-downloading..."
-            rm -f "$GEOIP_FILE"
+    
+    # Download for EvilFeed (uses GeoLite2-City.mmdb - mixed case)
+    local EVILFEED_GEOIP="$SCRIPT_DIR/evilfeed/GeoLite2-City.mmdb"
+    
+    # Download for GoPhish (uses geolite2-city.mmdb - lowercase)
+    local GOPHISH_GEOIP="$SCRIPT_DIR/gophish/static/db/geolite2-city.mmdb"
+    
+    # Function to download and validate GeoIP file
+    download_geoip_file() {
+        local target_file="$1"
+        local target_name="$2"
+        
+        # Check if already exists and is valid (> 1MB)
+        if [[ -f "$target_file" ]]; then
+            local file_size=$(stat -f%z "$target_file" 2>/dev/null || stat -c%s "$target_file" 2>/dev/null)
+            if [[ "$file_size" -gt 1000000 ]]; then
+                print_info "$target_name: Already exists ($(numfmt --to=iec $file_size 2>/dev/null || echo "${file_size} bytes"))"
+                return 0
+            else
+                print_warning "$target_name: Existing file is too small, re-downloading..."
+                rm -f "$target_file"
+            fi
         fi
-    fi
-
-    # Download the file
-    print_info "Downloading from $GEOIP_URL ..."
-    if curl -L -o "$GEOIP_FILE" "$GEOIP_URL" --progress-bar; then
-        local file_size=$(stat -f%z "$GEOIP_FILE" 2>/dev/null || stat -c%s "$GEOIP_FILE" 2>/dev/null)
-        if [[ "$file_size" -gt 1000000 ]]; then
-            print_good "GeoLite2-City.mmdb downloaded successfully ($(numfmt --to=iec $file_size 2>/dev/null || echo "${file_size} bytes"))"
+        
+        # Ensure target directory exists
+        mkdir -p "$(dirname "$target_file")"
+        
+        # Download the file
+        print_info "$target_name: Downloading from $GEOIP_URL ..."
+        if curl -L -o "$target_file" "$GEOIP_URL" --progress-bar; then
+            local file_size=$(stat -f%z "$target_file" 2>/dev/null || stat -c%s "$target_file" 2>/dev/null)
+            if [[ "$file_size" -gt 1000000 ]]; then
+                print_good "$target_name: Downloaded successfully ($(numfmt --to=iec $file_size 2>/dev/null || echo "${file_size} bytes"))"
+                return 0
+            else
+                print_warning "$target_name: Downloaded file is too small"
+                return 1
+            fi
         else
-            print_warning "Downloaded file is too small, geo-location may not work"
-            print_info "You can manually download from: $GEOIP_URL"
+            print_warning "$target_name: Failed to download"
+            return 1
         fi
-    else
-        print_warning "Failed to download GeoIP database"
-        print_info "Map will use IP-API fallback (rate-limited to 45 req/min)"
-        print_info "To manually install: curl -L -o evilfeed/GeoLite2-City.mmdb $GEOIP_URL"
-    fi
+    }
+    
+    # Download for EvilFeed
+    echo ""
+    print_info "Downloading GeoIP for EvilFeed..."
+    download_geoip_file "$EVILFEED_GEOIP" "EvilFeed GeoIP"
+    
+    # Download for GoPhish (separate copy with lowercase filename)
+    echo ""
+    print_info "Downloading GeoIP for GoPhish..."
+    download_geoip_file "$GOPHISH_GEOIP" "GoPhish GeoIP"
+    
+    echo ""
+    print_info "GeoIP database setup complete"
+    print_info "  - EvilFeed: $EVILFEED_GEOIP"
+    print_info "  - GoPhish:  $GOPHISH_GEOIP"
 }
 
 configure_dns() {

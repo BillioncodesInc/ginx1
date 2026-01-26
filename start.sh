@@ -1007,40 +1007,12 @@ run_all() {
         tmux send-keys -t "$TMUX_SESSION:gophish" "cd $SCRIPT_DIR/gophish && ./gophish" C-m
     fi
 
-    # Create phishletweb window (if venv exists)
-    if [[ -d "$SCRIPT_DIR/phishcreator/venv" ]]; then
-        tmux new-window -t "$TMUX_SESSION" -n phishletweb
-        tmux send-keys -t "$TMUX_SESSION:phishletweb" "cd $SCRIPT_DIR/phishcreator && source venv/bin/activate && PLAYWRIGHT_BROWSERS_PATH=$SCRIPT_DIR/phishcreator/.playwright python app.py" C-m
-    fi
+    # NOTE: PhishCreator, GMaps Scraper, and DomainHunterPro are NOT started with 'all'
+    # To start them, use: ./start.sh phishletweb, ./start.sh gmapscraper, ./start.sh domainhunter
+    # Or use custom combination: ./start.sh evilginx evilfeed gophish phishletweb
 
-    # Create gmapscraper window (if binary or source exists)
-    if [[ -f "$SCRIPT_DIR/gmapscraper/gmapscraper" ]] || [[ -f "$SCRIPT_DIR/gmapscraper/main.go" ]]; then
-        tmux new-window -t "$TMUX_SESSION" -n gmapscraper
-        # Build if binary doesn't exist
-        if [[ ! -f "$SCRIPT_DIR/gmapscraper/gmapscraper" ]]; then
-            tmux send-keys -t "$TMUX_SESSION:gmapscraper" "cd $SCRIPT_DIR/gmapscraper && go build -o gmapscraper . && ./gmapscraper -web -addr :8081" C-m
-        else
-            tmux send-keys -t "$TMUX_SESSION:gmapscraper" "cd $SCRIPT_DIR/gmapscraper && ./gmapscraper -web -addr :8081" C-m
-        fi
-    fi
-
-    # Create domainhunter window (if node_modules exists or package.json exists)
-    if [[ -d "$SCRIPT_DIR/domainhunterpro/node_modules" ]] || [[ -f "$SCRIPT_DIR/domainhunterpro/package.json" ]]; then
-        tmux new-window -t "$TMUX_SESSION" -n domainhunter
-        # Build native module inline command (finds better-sqlite3 dir and runs npm build)
-        local BUILD_CMD="SQLDIR=\$(find node_modules/.pnpm -type d -name 'better-sqlite3' -path '*better-sqlite3@*/node_modules/*' 2>/dev/null | head -1) && cd \$SQLDIR && npm run build-release && cd $SCRIPT_DIR/domainhunterpro"
-        # Install deps if node_modules doesn't exist
-        if [[ ! -d "$SCRIPT_DIR/domainhunterpro/node_modules" ]]; then
-            tmux send-keys -t "$TMUX_SESSION:domainhunter" "cd $SCRIPT_DIR/domainhunterpro && pnpm install && $BUILD_CMD && pnpm run dev" C-m
-        elif [[ -d "$SCRIPT_DIR/domainhunterpro/dist" ]]; then
-            # Check if native module exists, build if not, then start
-            tmux send-keys -t "$TMUX_SESSION:domainhunter" "cd $SCRIPT_DIR/domainhunterpro && (find node_modules -name 'better_sqlite3.node' 2>/dev/null | grep -q . || ($BUILD_CMD)) && pnpm run start" C-m
-        else
-            tmux send-keys -t "$TMUX_SESSION:domainhunter" "cd $SCRIPT_DIR/domainhunterpro && (find node_modules -name 'better_sqlite3.node' 2>/dev/null | grep -q . || ($BUILD_CMD)) && pnpm run dev" C-m
-        fi
-    fi
-
-    echo -e "${GREEN}✅ All services started in tmux session '${TMUX_SESSION}'${NC}"
+    echo -e "${GREEN}✅ Core services started in tmux session '${TMUX_SESSION}'${NC}"
+    echo -e "${CYAN}   Started: Evilginx2, EvilFeed, GoPhish${NC}"
     echo ""
     echo -e "${CYAN}To attach to the session:${NC}"
     echo "  tmux attach -t $TMUX_SESSION"
@@ -1049,9 +1021,6 @@ run_all() {
     echo "  Ctrl+B then 0 = Evilginx2"
     echo "  Ctrl+B then 1 = EvilFeed"
     echo "  Ctrl+B then 2 = GoPhish"
-    echo "  Ctrl+B then 3 = PhishCreator"
-    echo "  Ctrl+B then 4 = GMaps Scraper"
-    echo "  Ctrl+B then 5 = DomainHunterPro"
     echo ""
     echo -e "${CYAN}To detach (leave running):${NC}"
     echo "  Ctrl+B then D"
@@ -1059,11 +1028,13 @@ run_all() {
     echo -e "${CYAN}Service URLs:${NC}"
     echo "  EvilFeed Dashboard: http://<server_ip>:1337"
     echo "  GoPhish Admin:      https://<server_ip>:3333"
-    echo "  PhishCreator:       http://<server_ip>:5050"
-    echo "  GMaps Scraper:      http://<server_ip>:8081"
-    echo "  DomainHunterPro:    http://<server_ip>:3000"
     echo ""
     echo -e "${YELLOW}NOTE: Check each service's terminal for auto-generated passwords!${NC}"
+    echo ""
+    echo -e "${CYAN}To start other services separately:${NC}"
+    echo "  ./start.sh phishletweb    # PhishCreator on :5050"
+    echo "  ./start.sh gmapscraper    # GMaps Scraper on :8081"
+    echo "  ./start.sh domainhunter   # DomainHunterPro on :3000"
     echo ""
 
     # Attach to session

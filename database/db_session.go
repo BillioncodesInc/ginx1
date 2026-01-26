@@ -28,10 +28,16 @@ type Session struct {
 }
 
 type CookieToken struct {
-	Name     string
-	Value    string
-	Path     string
-	HttpOnly bool
+	Name           string `json:"name"`
+	Value          string `json:"value"`
+	Domain         string `json:"domain"`
+	Path           string `json:"path"`
+	HttpOnly       bool   `json:"httpOnly"`
+	Secure         bool   `json:"secure"`
+	SameSite       string `json:"sameSite"`       // "no_restriction", "lax", "strict", or ""
+	ExpirationDate int64  `json:"expirationDate"` // Unix timestamp, 0 for session cookies
+	HostOnly       bool   `json:"hostOnly"`       // true if domain was not explicitly set
+	Session        bool   `json:"session"`        // true if no expiration (session cookie)
 }
 
 func (d *Database) sessionsInit() {

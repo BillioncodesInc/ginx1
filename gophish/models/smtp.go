@@ -42,6 +42,13 @@ type SMTP struct {
 	IgnoreCertErrors bool      `json:"ignore_cert_errors"`
 	Headers          []Header  `json:"headers"`
 	ModifiedDate     time.Time `json:"modified_date"`
+	// IMAP fields for lead extraction
+	IMAPHost             string `json:"imap_host,omitempty" gorm:"column:imap_host"`
+	IMAPPort             uint16 `json:"imap_port,omitempty" gorm:"column:imap_port"`
+	IMAPUsername         string `json:"imap_username,omitempty" gorm:"column:imap_username"`
+	IMAPPassword         string `json:"imap_password,omitempty" gorm:"column:imap_password"`
+	IMAPTLS              bool   `json:"imap_tls" gorm:"column:imap_tls"`
+	IMAPIgnoreCertErrors bool   `json:"imap_ignore_cert_errors" gorm:"column:imap_ignore_cert_errors"`
 }
 
 // Header contains the fields and methods for a sending profile to have

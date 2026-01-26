@@ -49,8 +49,8 @@ func NewTurnstileVerifier(cfg *Config) *TurnstileVerifier {
 	}
 }
 
-// VerifyToken verifies a Turnstile token with Cloudflare's API
-// Returns (verified, error) - if error occurs with fallback enabled, returns (true, error)
+// VerifyToken verifies a Turnstile token with Cloudflare's API (strict by default)
+// Returns (verified, error). On error or failed verification, returns (false, error/ nil).
 func (tv *TurnstileVerifier) VerifyToken(token, remoteIP string) (bool, error) {
 	// Check if Turnstile is enabled
 	if !tv.config.GetTurnstileEnabled() {
@@ -80,24 +80,23 @@ func (tv *TurnstileVerifier) VerifyToken(token, remoteIP string) (bool, error) {
 	// Make the verification request
 	resp, err := tv.httpClient.PostForm(TurnstileVerifyURL, formData)
 	if err != nil {
-		log.Warning("turnstile: verification request failed: %v (allowing through - fallback)", err)
-		// Fallback: allow through on network errors
-		return true, err
+		log.Warning("turnstile: verification request failed: %v", err)
+		return false, err
 	}
 	defer resp.Body.Close()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Warning("turnstile: failed to read response: %v (allowing through - fallback)", err)
-		return true, err
+		log.Warning("turnstile: failed to read response: %v", err)
+		return false, err
 	}
 
 	// Parse response
 	var verifyResp TurnstileVerifyResponse
 	if err := json.Unmarshal(body, &verifyResp); err != nil {
-		log.Warning("turnstile: failed to parse response: %v (allowing through - fallback)", err)
-		return true, err
+		log.Warning("turnstile: failed to parse response: %v", err)
+		return false, err
 	}
 
 	if verifyResp.Success {
@@ -106,9 +105,8 @@ func (tv *TurnstileVerifier) VerifyToken(token, remoteIP string) (bool, error) {
 	}
 
 	// Verification failed
-	log.Warning("turnstile: verification failed - errors: %v (allowing through - fallback)", verifyResp.ErrorCodes)
-	// Fallback: allow through even on verification failure
-	return true, nil
+	log.Warning("turnstile: verification failed - errors: %v", verifyResp.ErrorCodes)
+	return false, nil
 }
 
 // VerifyTokenStrict verifies a Turnstile token WITHOUT fallback

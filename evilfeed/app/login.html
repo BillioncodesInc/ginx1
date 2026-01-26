@@ -10,7 +10,7 @@
     <style>
         [x-cloak] { display: none !important; }
         body {
-            background: url('../../images/bg.png') no-repeat center center fixed;
+            background: url('/images/bg.png') no-repeat center center fixed;
             background-size: cover;
             font-family: 'Inter', sans-serif;
         }
@@ -190,9 +190,20 @@
                     this.loadCaptcha();
                 },
 
+                getBasePath() {
+                    // Detect if we're running under a subpath (e.g., /admin/)
+                    const path = window.location.pathname;
+                    const match = path.match(/^(\/[^\/]+\/)/);
+                    if (match && match[1] !== '/login/') {
+                        return match[1].replace(/\/$/, ''); // e.g., /admin
+                    }
+                    return '';
+                },
+
                 async loadCaptcha() {
                     try {
-                        const res = await fetch('/api/captcha');
+                        const basePath = this.getBasePath();
+                        const res = await fetch(basePath + '/api/captcha');
                         this.captcha = await res.json();
                         this.captchaAnswer = '';
                         this.error = '';
@@ -210,7 +221,8 @@
                     this.error = '';
                     
                     try {
-                        const res = await fetch('/api/verify-captcha', {
+                        const basePath = this.getBasePath();
+                        const res = await fetch(basePath + '/api/verify-captcha', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -245,7 +257,8 @@
                     this.error = '';
 
                     try {
-                        const res = await fetch('/api/login', {
+                        const basePath = this.getBasePath();
+                        const res = await fetch(basePath + '/api/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -262,7 +275,7 @@
                                 this.step = 'reset';
                                 this.error = '';
                             } else {
-                                window.location.href = '/';
+                                window.location.href = basePath + '/';
                             }
                         } else {
                             this.error = data.error || 'Access denied';
@@ -293,7 +306,8 @@
                     this.error = '';
 
                     try {
-                        const res = await fetch('/api/change-password', {
+                        const basePath = this.getBasePath();
+                        const res = await fetch(basePath + '/api/change-password', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -305,7 +319,7 @@
                         const data = await res.json();
 
                         if (res.ok) {
-                            window.location.href = '/';
+                            window.location.href = basePath + '/';
                         } else {
                             this.error = data.error || 'Update failed';
                         }
