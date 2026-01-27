@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ProfGinx V8 Complete Cleanup Script
+# Mamba2Fa V8 Complete Cleanup Script
 # Stops all services, kills tmux sessions, and removes data
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,12 +15,12 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # tmux session name (must match start.sh)
-TMUX_SESSION="profginx"
+TMUX_SESSION="mamba2fa"
 
 clear
 
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║              PROFGINX V8 CLEANUP SCRIPT                      ║${NC}"
+echo -e "${CYAN}║              MAMBA2FA V8 CLEANUP SCRIPT                      ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -49,7 +49,7 @@ print_info() {
 # ============================================
 
 stop_services_only() {
-    echo -e "${BLUE}Stopping all ProfGinx V4 services...${NC}"
+    echo -e "${BLUE}Stopping all Mamba2Fa V8 services...${NC}"
     echo ""
 
     # Kill tmux session
@@ -61,8 +61,8 @@ stop_services_only() {
         print_info "No tmux session '${TMUX_SESSION}' found"
     fi
 
-    # Also kill any other profginx-related tmux sessions
-    tmux list-sessions 2>/dev/null | grep -i "profginx\|evilginx\|gophish\|evilfeed" | cut -d: -f1 | while read -r session; do
+    # Also kill any other mamba2fa-related tmux sessions
+    tmux list-sessions 2>/dev/null | grep -i "mamba2fa\|evilginx\|gophish\|evilfeed" | cut -d: -f1 | while read -r session; do
         tmux kill-session -t "$session" 2>/dev/null
         print_good "tmux session '$session' killed"
     done
@@ -125,7 +125,7 @@ stop_services_only() {
 # ============================================
 
 full_cleanup() {
-    echo -e "${RED}⚠️  WARNING: This will DELETE ALL ProfGinx V8 data!${NC}"
+    echo -e "${RED}⚠️  WARNING: This will DELETE ALL Mamba2Fa V8 data!${NC}"
     echo ""
     echo -e "${YELLOW}This includes:${NC}"
     echo "  - Running services and tmux sessions"
@@ -167,7 +167,7 @@ full_cleanup() {
     fi
 
     # Kill any related tmux sessions
-    tmux list-sessions 2>/dev/null | grep -i "profginx\|evilginx\|gophish\|evilfeed" | cut -d: -f1 | while read -r session; do
+    tmux list-sessions 2>/dev/null | grep -i "mamba2fa\|evilginx\|gophish\|evilfeed" | cut -d: -f1 | while read -r session; do
         tmux kill-session -t "$session" 2>/dev/null
         print_good "tmux session '$session' killed"
     done
@@ -361,7 +361,7 @@ full_cleanup() {
 
     # Step 10: Remove systemd services
     echo -e "${BLUE}[10/11]${NC} Removing systemd services..."
-    SERVICES=("evilginx2" "gophish" "evilfeed" "profginx" "gmapscraper" "phishcreator" "domainhunter")
+    SERVICES=("evilginx2" "gophish" "evilfeed" "mamba2fa" "gmapscraper" "phishcreator" "domainhunter")
     FOUND_SERVICES=false
     for service in "${SERVICES[@]}"; do
         if systemctl list-unit-files 2>/dev/null | grep -q "$service.service"; then
@@ -409,7 +409,7 @@ full_cleanup() {
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${GREEN}Cleaned:${NC}"
-    echo "  ✅ tmux sessions (profginx)"
+    echo "  ✅ tmux sessions (mamba2fa)"
     echo "  ✅ Running processes (evilginx2, gophish, evilfeed, gmapscraper, phishcreator, domainhunter)"
     echo "  ✅ .evilginx/ (local config, certificates)"
     echo "  ✅ ~/.evilginx/ (home directory data)"
@@ -425,7 +425,7 @@ full_cleanup() {
     echo ""
     echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
     echo ""
-    echo -e "${GREEN}Your system is now clean for fresh ProfGinx V8 setup!${NC}"
+    echo -e "${GREEN}Your system is now clean for fresh Mamba2Fa V8 setup!${NC}"
     echo ""
     echo -e "${CYAN}To restart:${NC}"
     echo "  1. ./setup.sh build           # Rebuild binaries"

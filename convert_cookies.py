@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Cookie Format Converter for ProfGinx
-Converts raw ProfGinx cookie exports to browser extension compatible format
+Cookie Format Converter for Mamba2Fa
+Converts raw Mamba2Fa cookie exports to browser extension compatible format
 """
 
 import json
@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import argparse
 
 def convert_cookies_to_browser_format(input_file, output_file=None):
-    """Convert ProfGinx cookie format to browser extension format"""
+    """Convert Mamba2Fa cookie format to browser extension format"""
     
     try:
         with open(input_file, 'r') as f:
@@ -20,7 +20,7 @@ def convert_cookies_to_browser_format(input_file, output_file=None):
         print(f"Error reading input file: {e}")
         return False
     
-    # Extract cookie tokens from ProfGinx format
+    # Extract cookie tokens from Mamba2Fa format
     cookie_tokens = data.get('cookie_tokens', {})
     
     if not cookie_tokens:
@@ -74,8 +74,8 @@ def convert_cookies_to_browser_format(input_file, output_file=None):
         return False
 
 def main():
-    parser = argparse.ArgumentParser(description='Convert ProfGinx cookies to browser format')
-    parser.add_argument('input_file', help='Input JSON file from ProfGinx')
+    parser = argparse.ArgumentParser(description='Convert Mamba2Fa cookies to browser format')
+    parser.add_argument('input_file', help='Input JSON file from Mamba2Fa')
     parser.add_argument('-o', '--output', help='Output filename (optional)')
     
     args = parser.parse_args()

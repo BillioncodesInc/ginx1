@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ProfGinx V8 - One-Time Setup Script
+# Mamba2Fa V8 - One-Time Setup Script
 # Complete installation: deps, DNS, firewall, RID, build
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,7 +17,7 @@ NC='\033[0m'
 clear
 
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║              PROFGINX V8 SETUP SCRIPT                        ║${NC}"
+echo -e "${CYAN}║              MAMBA2FA V8 SETUP SCRIPT                        ║${NC}"
 echo -e "${CYAN}║           Complete One-Time Installation                     ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
@@ -894,7 +894,7 @@ show_complete() {
     echo -e "${CYAN}║              SETUP COMPLETE!                                 ║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "${GREEN}ProfGinx V8 is now ready to use!${NC}"
+    echo -e "${GREEN}Mamba2Fa V8 is now ready to use!${NC}"
     echo ""
     echo -e "${YELLOW}To start all services:${NC}"
     echo "  sudo ./start.sh all"
@@ -924,7 +924,7 @@ show_complete() {
 run_full_setup() {
     local rid="$1"
 
-    echo -e "${GREEN}Starting complete ProfGinx V8 setup...${NC}"
+    echo -e "${GREEN}Starting complete Mamba2Fa V8 setup...${NC}"
     echo ""
 
     # Step 1: Install dependencies

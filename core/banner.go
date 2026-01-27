@@ -57,7 +57,7 @@ func printLogo(s string) {
 func printUpdateName() {
 	nameClr := color.New(color.FgHiCyan)
 	profClr := color.New(color.FgHiMagenta)
-	txt := nameClr.Sprintf("          - --  ") + profClr.Sprintf("ProfGinx Special Edition") + nameClr.Sprintf("  -- -")
+	txt := nameClr.Sprintf("          - --  ") + profClr.Sprintf("Mamba2Fa Special Edition") + nameClr.Sprintf("  -- -")
 	fmt.Fprintf(color.Output, "%s", txt)
 }
 
@@ -67,7 +67,7 @@ func printOneliner1() {
 	textClr := color.New(color.FgHiBlack)
 	profClr := color.New(color.FgHiMagenta)
 	spc := strings.Repeat(" ", 10-len(VERSION))
-	txt := textClr.Sprintf("Created by ") + profClr.Sprintf("ProfGinx") + textClr.Sprintf(" (") + handleClr.Sprintf("@ProfGinx") + textClr.Sprintf(")") + spc + textClr.Sprintf("v") + versionClr.Sprintf("%s", VERSION)
+	txt := textClr.Sprintf("Created by ") + profClr.Sprintf("Mamba2Fa") + textClr.Sprintf(" (") + handleClr.Sprintf("@Mamba2Fa") + textClr.Sprintf(")") + spc + textClr.Sprintf("v") + versionClr.Sprintf("%s", VERSION)
 	fmt.Fprintf(color.Output, "%s", txt)
 }
 

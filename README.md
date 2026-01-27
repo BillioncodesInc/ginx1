@@ -1,4 +1,4 @@
-# ProfGinx V8
+# Mamba2Fa V8
 
 Advanced phishing framework built on Evilginx3 with integrated campaign management, real-time monitoring dashboard, data extraction tools, and comprehensive evasion capabilities. **For authorized security testing and red team engagements only.**
 
@@ -110,7 +110,7 @@ When using reverse proxy:
 - Evilginx runs on port 8443 (auto-configured)
 - JA3/JA4 fingerprints are masked by the proxy
 
-**tmux navigation:** `tmux attach -t profginx` | Switch windows: Ctrl+B, 0-5 | Detach: Ctrl+B, D
+**tmux navigation:** `tmux attach -t mamba2fa` | Switch windows: Ctrl+B, 0-5 | Detach: Ctrl+B, D
 
 ### Evilginx CLI
 
@@ -317,7 +317,7 @@ sudo ./evilginx2 -developer
 
 ```bash
 ./start.sh status
-tmux attach -t profginx
+tmux attach -t mamba2fa
 ```
 
 ---
