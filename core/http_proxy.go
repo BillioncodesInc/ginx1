@@ -283,11 +283,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				log.Warning("[ProxyPool] No working proxy found in pool to auto-configure")
 			}
 		} else if !enabled {
-			// Optionally disable single proxy when pool is disabled
-			// (commented out to preserve user's manual proxy settings)
-			// p.setProxy(false, "", "", 0, "", "")
-			// p.cfg.EnableProxy(false)
-			log.Info("[ProxyPool] Pool disabled - single proxy settings preserved")
+			// Disable single proxy when pool is disabled - return to direct connection
+			err := p.setProxy(false, "", "", 0, "", "")
+			if err != nil {
+				log.Warning("[ProxyPool] Failed to disable proxy: %v", err)
+			} else {
+				p.cfg.EnableProxy(false)
+				log.Info("[ProxyPool] Pool disabled - proxy disabled, using direct connection")
+			}
 		}
 	})
 
