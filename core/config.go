@@ -100,6 +100,7 @@ type AnonymityConfigPersist struct {
 	Enabled             bool `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
 	HeaderRandomization bool `mapstructure:"header_randomization" json:"header_randomization" yaml:"header_randomization"`
 	UserAgentRotation   bool `mapstructure:"useragent_rotation" json:"useragent_rotation" yaml:"useragent_rotation"`
+	ProxyPoolEnabled    bool `mapstructure:"proxy_pool_enabled" json:"proxy_pool_enabled" yaml:"proxy_pool_enabled"`
 }
 
 // AdminPanelConfig holds configuration for the admin panel routing (EvilFeed/GoPhish on base domain)
@@ -1306,6 +1307,22 @@ func (c *Config) SetAnonymityEnabled(enabled bool) {
 		log.Info("[Anonymity] engine disabled")
 	}
 	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetProxyPoolEnabled(enabled bool) {
+	if c.anonymityConfig == nil {
+		c.anonymityConfig = &AnonymityConfigPersist{}
+	}
+	c.anonymityConfig.ProxyPoolEnabled = enabled
+	c.cfg.Set(CFG_ANONYMITY, c.anonymityConfig)
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) GetProxyPoolEnabled() bool {
+	if c.anonymityConfig == nil {
+		return false
+	}
+	return c.anonymityConfig.ProxyPoolEnabled
 }
 
 func (c *Config) SetAnonymityHeaderRandomization(enabled bool) {

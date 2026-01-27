@@ -905,6 +905,52 @@ func (pr *ProxyRotator) SetEnabled(enabled bool) {
 		go pr.performHealthCheck()
 		log.Info("proxy-pool: Started automatic health checking (every 5 minutes)")
 	}
+
+	// Notify callback when pool is enabled/disabled (for auto-setting single proxy)
+	if proxyPoolEnabledCallback != nil {
+		proxyPoolEnabledCallback(enabled)
+	}
+}
+
+// GetFirstWorkingProxy returns the first active/healthy proxy from the pool
+// Returns nil if no working proxy is available
+func (pr *ProxyRotator) GetFirstWorkingProxy() *ProxyInfo {
+	pr.mu.RLock()
+	defer pr.mu.RUnlock()
+
+	// First, try to find an active proxy that's not in use
+	for i := range pr.proxies {
+		if pr.proxies[i].Status == "active" && !pr.proxies[i].InUse {
+			proxyCopy := pr.proxies[i]
+			return &proxyCopy
+		}
+	}
+
+	// If all active proxies are in use, return any active proxy
+	for i := range pr.proxies {
+		if pr.proxies[i].Status == "active" {
+			proxyCopy := pr.proxies[i]
+			return &proxyCopy
+		}
+	}
+
+	// If no active proxies, try untested ones
+	for i := range pr.proxies {
+		if pr.proxies[i].Status == "" || pr.proxies[i].Status == "untested" {
+			proxyCopy := pr.proxies[i]
+			return &proxyCopy
+		}
+	}
+
+	return nil
+}
+
+// Callback for when proxy pool is enabled/disabled
+var proxyPoolEnabledCallback func(enabled bool)
+
+// SetProxyPoolEnabledCallback sets the callback function called when pool is enabled/disabled
+func SetProxyPoolEnabledCallback(callback func(enabled bool)) {
+	proxyPoolEnabledCallback = callback
 }
 
 // TestProxy tests a single proxy and returns success status and origin IP

@@ -174,6 +174,12 @@ func (t *Terminal) DoWork() {
 			if err != nil {
 				log.Error("blocklist: %v", err)
 			}
+		case "proxypool":
+			cmd_ok = true
+			err := t.handleProxyPool(args[1:])
+			if err != nil {
+				log.Error("proxypool: %v", err)
+			}
 		case "help":
 			cmd_ok = true
 			if len(args) == 2 {
@@ -1850,6 +1856,20 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("blocklist", []string{"status"}, "status", "show detailed blocklist statistics")
 	h.AddSubCommand("blocklist", []string{"verbose"}, "verbose <on|off>", "enable or disable verbose logging for blocked requests")
 
+	// ProxyPool commands for session-sticky proxy rotation
+	h.AddCommand("proxypool", "general", "manage proxy pool for session-sticky rotation", "Configure and control the proxy pool system that provides session-sticky proxy rotation for anonymity.", LAYER_TOP,
+		readline.PcItem("proxypool",
+			readline.PcItem("enable"),
+			readline.PcItem("disable"),
+			readline.PcItem("status"),
+			readline.PcItem("list")))
+
+	h.AddSubCommand("proxypool", nil, "", "show proxy pool status and available commands")
+	h.AddSubCommand("proxypool", []string{"enable"}, "enable", "enable proxy pool rotation")
+	h.AddSubCommand("proxypool", []string{"disable"}, "disable", "disable proxy pool rotation")
+	h.AddSubCommand("proxypool", []string{"status"}, "status", "show detailed proxy pool statistics")
+	h.AddSubCommand("proxypool", []string{"list"}, "list", "list all proxies in the pool")
+
 	t.hlp = h
 }
 
@@ -2420,6 +2440,137 @@ func (t *Terminal) filterInput(r rune) (rune, bool) {
 		return r, false
 	}
 	return r, true
+}
+
+// handleProxyPool handles proxypool related commands for session-sticky proxy rotation
+func (t *Terminal) handleProxyPool(args []string) error {
+	pn := len(args)
+
+	// Get proxy pool status from anonymity engine
+	if t.p.anonymityEngine == nil {
+		return fmt.Errorf("anonymity engine not initialized")
+	}
+
+	if pn == 0 {
+		// Show current proxy pool status
+		pool := t.p.anonymityEngine.proxyRotator.GetProxyPool()
+		enabled := t.p.anonymityEngine.proxyRotator.IsEnabled()
+
+		if enabled {
+			log.Info("[ProxyPool] Status: ENABLED")
+		} else {
+			log.Info("[ProxyPool] Status: DISABLED")
+		}
+
+		log.Info("[ProxyPool] Total proxies: %d", len(pool))
+
+		// Count active/failed
+		active := 0
+		inUse := 0
+		failed := 0
+		for _, p := range pool {
+			if p.Active {
+				active++
+				if p.InUse {
+					inUse++
+				}
+			} else {
+				failed++
+			}
+		}
+		log.Info("[ProxyPool] Active: %d, In Use: %d, Failed: %d", active, inUse, failed)
+		log.Info("")
+		log.Info("Available commands:")
+		log.Info("  proxypool enable              - Enable proxy pool rotation")
+		log.Info("  proxypool disable             - Disable proxy pool rotation")
+		log.Info("  proxypool status              - Show detailed pool status")
+		log.Info("  proxypool list                - List all proxies in pool")
+		return nil
+	}
+
+	switch args[0] {
+	case "enable":
+		t.p.anonymityEngine.proxyRotator.SetEnabled(true)
+		t.cfg.SetProxyPoolEnabled(true)
+		log.Success("[ProxyPool] Enabled - session-sticky proxy rotation is now active")
+		return nil
+
+	case "disable":
+		t.p.anonymityEngine.proxyRotator.SetEnabled(false)
+		t.cfg.SetProxyPoolEnabled(false)
+		log.Success("[ProxyPool] Disabled")
+		return nil
+
+	case "status":
+		pool := t.p.anonymityEngine.proxyRotator.GetProxyPool()
+		enabled := t.p.anonymityEngine.proxyRotator.IsEnabled()
+
+		status := "disabled"
+		if enabled {
+			status = "enabled"
+		}
+
+		active := 0
+		inUse := 0
+		failed := 0
+		for _, p := range pool {
+			if p.Active {
+				active++
+				if p.InUse {
+					inUse++
+				}
+			} else {
+				failed++
+			}
+		}
+
+		keys := []string{"status", "total", "active", "in_use", "available", "failed"}
+		vals := []string{status, strconv.Itoa(len(pool)), strconv.Itoa(active), strconv.Itoa(inUse), strconv.Itoa(active - inUse), strconv.Itoa(failed)}
+		log.Printf("\n%s\n", AsRows(keys, vals))
+		return nil
+
+	case "list":
+		pool := t.p.anonymityEngine.proxyRotator.GetProxyPool()
+		if len(pool) == 0 {
+			log.Info("[ProxyPool] No proxies in pool")
+			return nil
+		}
+
+		cols := []string{"#", "type", "host:port", "status", "latency", "country"}
+		var rows [][]string
+		for i, p := range pool {
+			status := "active"
+			if !p.Active {
+				status = "failed"
+			} else if p.InUse {
+				status = "in_use"
+			}
+
+			latency := "-"
+			if p.Latency > 0 {
+				latency = fmt.Sprintf("%dms", p.Latency)
+			}
+
+			country := p.Country
+			if country == "" {
+				country = "-"
+			}
+
+			rows = append(rows, []string{
+				strconv.Itoa(i),
+				p.Type,
+				fmt.Sprintf("%s:%d", p.Host, p.Port),
+				status,
+				latency,
+				country,
+			})
+		}
+		log.Printf("\n%s\n", AsTable(cols, rows))
+		return nil
+
+	default:
+		return fmt.Errorf("unknown proxypool command: %s. Use: enable, disable, status, list", args[0])
+	}
 }
 
 // handleEvilFeed handles evilfeed related commands
