@@ -54,7 +54,7 @@ type ProxyRotationConfig struct {
 
 // ProxyInfo contains proxy server information
 type ProxyInfo struct {
-	Type        string            `json:"type"` // "http", "https", "socks4", "socks5"
+	Type        string            `json:"type"` // "http", "https", "socks4", "socks5", "socks5h"
 	Host        string            `json:"host"`
 	Port        int               `json:"port"`
 	Username    string            `json:"username,omitempty"`
@@ -66,6 +66,10 @@ type ProxyInfo struct {
 	Latency     time.Duration     `json:"latency"`
 	Active      bool              `json:"active"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
+	// Session-sticky proxy rotation fields
+	InUse     bool   `json:"in_use"`               // Whether proxy is currently assigned to a session
+	SessionID string `json:"session_id,omitempty"` // ID of session using this proxy
+	Status    string `json:"status,omitempty"`     // "untested", "active", "failed", "in_use"
 }
 
 // ProxyChainConfig configures proxy chaining
@@ -694,14 +698,345 @@ func (pr *ProxyRotator) performHealthCheck() {
 			if err != nil {
 				pr.proxies[index].Active = false
 				pr.proxies[index].SuccessRate *= 0.9 // Decay success rate
+				pr.proxies[index].Status = "failed"
 			} else {
 				pr.proxies[index].Active = true
 				pr.proxies[index].SuccessRate = pr.proxies[index].SuccessRate*0.9 + 0.1 // Improve success rate
 				pr.proxies[index].Latency = latency
+				if !pr.proxies[index].InUse {
+					pr.proxies[index].Status = "active"
+				}
 			}
 			pr.mu.Unlock()
 		}(i)
 	}
+}
+
+// ============================================
+// SESSION-STICKY PROXY ROTATION METHODS
+// ============================================
+
+// GetAvailableProxy finds and reserves an available proxy for a session
+// Returns a copy of the proxy info to avoid race conditions
+func (pr *ProxyRotator) GetAvailableProxy(sessionID string) (*ProxyInfo, error) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	if len(pr.proxies) == 0 {
+		return nil, fmt.Errorf("no proxies configured in pool")
+	}
+
+	// Find first available proxy that is active and not in use
+	for i := range pr.proxies {
+		if pr.proxies[i].Active && !pr.proxies[i].InUse {
+			pr.proxies[i].InUse = true
+			pr.proxies[i].SessionID = sessionID
+			pr.proxies[i].LastUsed = time.Now()
+			pr.proxies[i].Status = "in_use"
+
+			// Return a copy to avoid race conditions
+			proxyCopy := pr.proxies[i]
+			log.Info("proxy-pool: Assigned proxy %s:%d to session %s", proxyCopy.Host, proxyCopy.Port, sessionID)
+			return &proxyCopy, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no available proxies in pool (all %d proxies are in use or inactive)", len(pr.proxies))
+}
+
+// ReleaseProxy marks a proxy as available again when session ends
+func (pr *ProxyRotator) ReleaseProxy(host string, port int) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	for i := range pr.proxies {
+		if pr.proxies[i].Host == host && pr.proxies[i].Port == port {
+			sessionID := pr.proxies[i].SessionID
+			pr.proxies[i].InUse = false
+			pr.proxies[i].SessionID = ""
+			if pr.proxies[i].Active {
+				pr.proxies[i].Status = "active"
+			}
+			log.Info("proxy-pool: Released proxy %s:%d (was session %s)", host, port, sessionID)
+			return
+		}
+	}
+	log.Warning("proxy-pool: Attempted to release unknown proxy %s:%d", host, port)
+}
+
+// ReleaseProxyBySession releases proxy assigned to a specific session
+func (pr *ProxyRotator) ReleaseProxyBySession(sessionID string) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	for i := range pr.proxies {
+		if pr.proxies[i].SessionID == sessionID {
+			pr.proxies[i].InUse = false
+			pr.proxies[i].SessionID = ""
+			if pr.proxies[i].Active {
+				pr.proxies[i].Status = "active"
+			}
+			log.Info("proxy-pool: Released proxy %s:%d for session %s", pr.proxies[i].Host, pr.proxies[i].Port, sessionID)
+			return
+		}
+	}
+}
+
+// GetProxyPool returns a copy of the current proxy pool for API/UI
+func (pr *ProxyRotator) GetProxyPool() []ProxyInfo {
+	pr.mu.RLock()
+	defer pr.mu.RUnlock()
+
+	// Return a copy to avoid race conditions
+	poolCopy := make([]ProxyInfo, len(pr.proxies))
+	copy(poolCopy, pr.proxies)
+	return poolCopy
+}
+
+// SetProxyPool replaces the entire proxy pool (from UI/API)
+func (pr *ProxyRotator) SetProxyPool(proxies []ProxyInfo) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	// Initialize status for new proxies
+	for i := range proxies {
+		if proxies[i].Status == "" {
+			proxies[i].Status = "untested"
+		}
+		if !proxies[i].Active && proxies[i].Status == "untested" {
+			proxies[i].Active = true // Default to active for new proxies
+		}
+	}
+
+	pr.proxies = proxies
+	pr.config.ProxyList = proxies
+	log.Info("proxy-pool: Updated pool with %d proxies", len(proxies))
+}
+
+// AddProxy adds a single proxy to the pool
+func (pr *ProxyRotator) AddProxy(proxy ProxyInfo) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	if proxy.Status == "" {
+		proxy.Status = "untested"
+	}
+	if !proxy.Active {
+		proxy.Active = true
+	}
+
+	pr.proxies = append(pr.proxies, proxy)
+	pr.config.ProxyList = pr.proxies
+	log.Info("proxy-pool: Added proxy %s:%d (type: %s)", proxy.Host, proxy.Port, proxy.Type)
+}
+
+// RemoveProxy removes a proxy from the pool by host:port
+func (pr *ProxyRotator) RemoveProxy(host string, port int) bool {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	for i := range pr.proxies {
+		if pr.proxies[i].Host == host && pr.proxies[i].Port == port {
+			// Don't remove if in use
+			if pr.proxies[i].InUse {
+				log.Warning("proxy-pool: Cannot remove proxy %s:%d - currently in use by session %s", host, port, pr.proxies[i].SessionID)
+				return false
+			}
+			pr.proxies = append(pr.proxies[:i], pr.proxies[i+1:]...)
+			pr.config.ProxyList = pr.proxies
+			log.Info("proxy-pool: Removed proxy %s:%d", host, port)
+			return true
+		}
+	}
+	return false
+}
+
+// GetPoolStats returns statistics about the proxy pool
+func (pr *ProxyRotator) GetPoolStats() map[string]interface{} {
+	pr.mu.RLock()
+	defer pr.mu.RUnlock()
+
+	total := len(pr.proxies)
+	active := 0
+	inUse := 0
+	failed := 0
+
+	for _, p := range pr.proxies {
+		if p.Active {
+			active++
+		}
+		if p.InUse {
+			inUse++
+		}
+		if p.Status == "failed" {
+			failed++
+		}
+	}
+
+	return map[string]interface{}{
+		"total":     total,
+		"active":    active,
+		"in_use":    inUse,
+		"available": active - inUse,
+		"failed":    failed,
+	}
+}
+
+// IsEnabled returns whether proxy rotation is enabled
+func (pr *ProxyRotator) IsEnabled() bool {
+	return pr.config != nil && pr.config.Enabled
+}
+
+// SetEnabled enables or disables proxy rotation
+func (pr *ProxyRotator) SetEnabled(enabled bool) {
+	pr.mu.Lock()
+	wasEnabled := pr.config != nil && pr.config.Enabled
+	if pr.config != nil {
+		pr.config.Enabled = enabled
+	}
+	pr.mu.Unlock()
+
+	log.Info("proxy-pool: Session-sticky rotation %s", map[bool]string{true: "enabled", false: "disabled"}[enabled])
+
+	// Start health check routine when enabling (if not already running)
+	if enabled && !wasEnabled {
+		go pr.healthCheckRoutine()
+		// Run immediate health check on all proxies when pool is enabled
+		go pr.performHealthCheck()
+		log.Info("proxy-pool: Started automatic health checking (every 5 minutes)")
+	}
+}
+
+// TestProxy tests a single proxy and returns success status and origin IP
+func (pr *ProxyRotator) TestProxy(index int) (bool, string, error) {
+	pr.mu.RLock()
+	if index < 0 || index >= len(pr.proxies) {
+		pr.mu.RUnlock()
+		return false, "", fmt.Errorf("invalid proxy index")
+	}
+	proxy := pr.proxies[index]
+	pr.mu.RUnlock()
+
+	success, originIP := testProxyDirect(&proxy)
+
+	pr.mu.Lock()
+	if index < len(pr.proxies) {
+		if success {
+			pr.proxies[index].Active = true
+			pr.proxies[index].Status = "active"
+			pr.proxies[index].SuccessRate = pr.proxies[index].SuccessRate*0.9 + 0.1
+		} else {
+			pr.proxies[index].Active = false
+			pr.proxies[index].Status = "failed"
+			pr.proxies[index].SuccessRate *= 0.9
+		}
+	}
+	pr.mu.Unlock()
+
+	return success, originIP, nil
+}
+
+// TestAllProxies tests all proxies in the pool and returns stats
+func (pr *ProxyRotator) TestAllProxies() (total, passed, failed int) {
+	pr.mu.RLock()
+	total = len(pr.proxies)
+	pr.mu.RUnlock()
+
+	if total == 0 {
+		return 0, 0, 0
+	}
+
+	var wg sync.WaitGroup
+	var passedCount, failedCount int32
+	var countMu sync.Mutex
+
+	for i := 0; i < total; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			success, _, _ := pr.TestProxy(index)
+			countMu.Lock()
+			if success {
+				passedCount++
+			} else {
+				failedCount++
+			}
+			countMu.Unlock()
+		}(i)
+	}
+
+	wg.Wait()
+	return total, int(passedCount), int(failedCount)
+}
+
+// ClearFailedProxies removes all proxies with failed status
+func (pr *ProxyRotator) ClearFailedProxies() int {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	newProxies := make([]ProxyInfo, 0, len(pr.proxies))
+	removed := 0
+
+	for _, p := range pr.proxies {
+		if p.Active || p.Status != "failed" {
+			newProxies = append(newProxies, p)
+		} else {
+			removed++
+			log.Info("proxy-pool: Removed failed proxy %s:%d", p.Host, p.Port)
+		}
+	}
+
+	pr.proxies = newProxies
+	pr.config.ProxyList = newProxies
+	return removed
+}
+
+// ToggleProxyActive enables or disables a specific proxy
+func (pr *ProxyRotator) ToggleProxyActive(index int) error {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	if index < 0 || index >= len(pr.proxies) {
+		return fmt.Errorf("invalid proxy index")
+	}
+
+	// Don't allow disabling if in use
+	if pr.proxies[index].InUse && pr.proxies[index].Active {
+		return fmt.Errorf("cannot disable proxy while in use by session %s", pr.proxies[index].SessionID)
+	}
+
+	pr.proxies[index].Active = !pr.proxies[index].Active
+	if pr.proxies[index].Active {
+		pr.proxies[index].Status = "active"
+	} else {
+		pr.proxies[index].Status = "disabled"
+	}
+
+	log.Info("proxy-pool: Proxy %s:%d %s", pr.proxies[index].Host, pr.proxies[index].Port,
+		map[bool]string{true: "enabled", false: "disabled"}[pr.proxies[index].Active])
+	return nil
+}
+
+// RemoveProxyByIndex removes a proxy by its index
+func (pr *ProxyRotator) RemoveProxyByIndex(index int) error {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	if index < 0 || index >= len(pr.proxies) {
+		return fmt.Errorf("invalid proxy index")
+	}
+
+	if pr.proxies[index].InUse {
+		return fmt.Errorf("cannot remove proxy while in use by session %s", pr.proxies[index].SessionID)
+	}
+
+	host := pr.proxies[index].Host
+	port := pr.proxies[index].Port
+	pr.proxies = append(pr.proxies[:index], pr.proxies[index+1:]...)
+	pr.config.ProxyList = pr.proxies
+
+	log.Info("proxy-pool: Removed proxy %s:%d", host, port)
+	return nil
 }
 
 // HeaderRandomizer implementation

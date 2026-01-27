@@ -29,6 +29,18 @@ type Session struct {
 	DoneSignal     chan struct{}
 	RemoteAddr     string
 	UserAgent      string
+	// Session-sticky proxy rotation support
+	AssignedProxy *SessionProxy `json:"-"` // Assigned proxy from pool, ignored in JSON serialization
+	CreateTime    time.Time     `json:"-"` // Session creation time for janitor cleanup
+}
+
+// SessionProxy holds proxy info assigned to a session (lightweight copy)
+type SessionProxy struct {
+	Type     string `json:"type"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
 }
 
 func NewSession(name string) (*Session, error) {
@@ -53,6 +65,8 @@ func NewSession(name string) (*Session, error) {
 		DoneSignal:     make(chan struct{}),
 		RemoteAddr:     "",
 		UserAgent:      "",
+		AssignedProxy:  nil,
+		CreateTime:     time.Now(),
 	}
 	s.CookieTokens = make(map[string]map[string]*database.CookieToken)
 

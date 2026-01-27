@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -122,8 +124,14 @@ func (api *InternalAPI) setupRoutes() {
 	// Turnstile config
 	api.router.HandleFunc("/_turnstile/config", api.handleTurnstileConfig).Methods("GET", "POST")
 
-	// Proxy config
+	// Proxy config (single proxy - legacy)
 	api.router.HandleFunc("/_proxy/config", api.handleProxyConfig).Methods("GET", "POST")
+
+	// Proxy Pool API (session-sticky rotation)
+	api.router.HandleFunc("/_proxy/pool", api.handleProxyPool).Methods("GET", "POST")
+	api.router.HandleFunc("/_proxy/pool/stats", api.handleProxyPoolStats).Methods("GET")
+	api.router.HandleFunc("/_proxy/pool/import", api.handleProxyBulkImport).Methods("POST")
+	api.router.HandleFunc("/_proxy/test", api.handleProxyTest).Methods("POST")
 
 	// Anonymity config
 	api.router.HandleFunc("/_anonymity/config", api.handleAnonymityConfig).Methods("GET", "POST")
@@ -710,4 +718,500 @@ func (api *InternalAPI) handleBlocklistConfig(w http.ResponseWriter, r *http.Req
 	}
 
 	http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+}
+
+// ============================================
+// PROXY POOL API HANDLERS (Session-Sticky Rotation)
+// ============================================
+
+// ProxyPoolConfig represents the proxy pool configuration for API
+type ProxyPoolConfig struct {
+	Enabled bool        `json:"enabled"`
+	Proxies []ProxyInfo `json:"proxies"`
+}
+
+// Callback functions for proxy pool (set by HttpProxy)
+var (
+	getProxyPoolFunc func() *ProxyPoolConfig
+	setProxyPoolFunc func(pool *ProxyPoolConfig) error
+	getPoolStatsFunc func() map[string]interface{}
+	testProxyFunc    func(proxy *ProxyInfo) (bool, string, error)
+)
+
+// SetProxyPoolCallbacks sets the callback functions for proxy pool management
+func SetProxyPoolCallbacks(
+	getPool func() *ProxyPoolConfig,
+	setPool func(pool *ProxyPoolConfig) error,
+	getStats func() map[string]interface{},
+	testProxy func(proxy *ProxyInfo) (bool, string, error),
+) {
+	getProxyPoolFunc = getPool
+	setProxyPoolFunc = setPool
+	getPoolStatsFunc = getStats
+	testProxyFunc = testProxy
+}
+
+func (api *InternalAPI) handleProxyPool(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == "GET" {
+		// Return the current proxy pool
+		if getProxyPoolFunc == nil {
+			json.NewEncoder(w).Encode(ProxyPoolConfig{
+				Enabled: false,
+				Proxies: []ProxyInfo{},
+			})
+			return
+		}
+		pool := getProxyPoolFunc()
+		// Mask passwords in response
+		for i := range pool.Proxies {
+			if pool.Proxies[i].Password != "" {
+				pool.Proxies[i].Password = "********"
+			}
+		}
+		json.NewEncoder(w).Encode(pool)
+		return
+	}
+
+	if r.Method == "POST" {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, `{"error":"failed to read request"}`, http.StatusBadRequest)
+			return
+		}
+		defer r.Body.Close()
+
+		var pool ProxyPoolConfig
+		if err := json.Unmarshal(body, &pool); err != nil {
+			http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+			return
+		}
+
+		if setProxyPoolFunc == nil {
+			http.Error(w, `{"error":"proxy pool not initialized"}`, http.StatusServiceUnavailable)
+			return
+		}
+
+		if err := setProxyPoolFunc(&pool); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		log.Info("internal-api: Proxy pool updated with %d proxies (enabled: %v)", len(pool.Proxies), pool.Enabled)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"count":   len(pool.Proxies),
+		})
+		return
+	}
+
+	http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+}
+
+func (api *InternalAPI) handleProxyPoolStats(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != "GET" {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	if getPoolStatsFunc == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"total":     0,
+			"active":    0,
+			"in_use":    0,
+			"available": 0,
+			"failed":    0,
+		})
+		return
+	}
+
+	stats := getPoolStatsFunc()
+	json.NewEncoder(w).Encode(stats)
+}
+
+// handleProxyBulkImport handles bulk proxy import with flexible format parsing
+// POST /_proxy/pool/import
+// Body: { "proxy_type": "socks5", "lines": ["host:port", "host|port|user|pass", ...] }
+func (api *InternalAPI) handleProxyBulkImport(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != "POST" {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, `{"error":"failed to read request"}`, http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var req BulkImportRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Validate proxy type
+	validTypes := map[string]bool{
+		"socks5":  true,
+		"socks5h": true,
+		"socks4":  true,
+		"http":    true,
+		"https":   true,
+	}
+
+	proxyType := strings.ToLower(req.ProxyType)
+	if proxyType == "" {
+		proxyType = "socks5" // Default
+	}
+
+	if !validTypes[proxyType] {
+		http.Error(w, fmt.Sprintf(`{"error":"invalid proxy_type: %s. Valid types: socks5, socks5h, socks4, http, https"}`, req.ProxyType), http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Lines) == 0 {
+		http.Error(w, `{"error":"no proxy lines provided"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Parse the proxies
+	result, err := ParseBulkProxies(req.Lines, proxyType)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	log.Info("internal-api: Bulk import parsed %d proxies (%d failed) with type %s", result.Imported, result.Failed, proxyType)
+	json.NewEncoder(w).Encode(result)
+}
+
+func (api *InternalAPI) handleProxyTest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != "POST" {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, `{"error":"failed to read request"}`, http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var proxy ProxyInfo
+	if err := json.Unmarshal(body, &proxy); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if proxy.Host == "" || proxy.Port == 0 {
+		http.Error(w, `{"error":"host and port are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	if proxy.Type == "" {
+		proxy.Type = "socks5" // Default to SOCKS5
+	}
+
+	// Test the proxy
+	if testProxyFunc != nil {
+		success, originIP, err := testProxyFunc(&proxy)
+		if err != nil {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":   false,
+				"error":     err.Error(),
+				"origin_ip": "",
+			})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":   success,
+			"origin_ip": originIP,
+			"error":     "",
+		})
+		return
+	}
+
+	// Fallback: test proxy directly
+	success, originIP := testProxyDirect(&proxy)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":   success,
+		"origin_ip": originIP,
+	})
+}
+
+// testProxyDirect tests a proxy by making a request to httpbin.org/ip
+func testProxyDirect(proxy *ProxyInfo) (bool, string) {
+	import_url := fmt.Sprintf("%s://%s:%d", proxy.Type, proxy.Host, proxy.Port)
+	if proxy.Username != "" && proxy.Password != "" {
+		import_url = fmt.Sprintf("%s://%s:%s@%s:%d", proxy.Type, proxy.Username, proxy.Password, proxy.Host, proxy.Port)
+	}
+
+	proxyURL, err := parseProxyURL(import_url)
+	if err != nil {
+		return false, ""
+	}
+
+	transport := &http.Transport{
+		Proxy: http.ProxyURL(proxyURL),
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   15 * time.Second,
+	}
+
+	resp, err := client.Get("https://httpbin.org/ip")
+	if err != nil {
+		return false, ""
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Origin string `json:"origin"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false, ""
+	}
+
+	return true, result.Origin
+}
+
+// parseProxyURL parses a proxy URL string
+func parseProxyURL(proxyStr string) (*url.URL, error) {
+	// Handle different proxy types
+	if !strings.Contains(proxyStr, "://") {
+		proxyStr = "socks5://" + proxyStr
+	}
+	return url.Parse(proxyStr)
+}
+
+// ============================================
+// BULK PROXY IMPORT PARSER
+// ============================================
+
+// BulkImportRequest represents a bulk proxy import request
+type BulkImportRequest struct {
+	ProxyType string   `json:"proxy_type"` // "socks5", "socks5h", "http", "https"
+	Lines     []string `json:"lines"`      // Raw proxy lines
+}
+
+// BulkImportResponse represents the result of bulk import
+type BulkImportResponse struct {
+	Success  bool        `json:"success"`
+	Imported int         `json:"imported"`
+	Failed   int         `json:"failed"`
+	Errors   []string    `json:"errors,omitempty"`
+	Proxies  []ProxyInfo `json:"proxies"`
+}
+
+// ParseProxyLine parses a single proxy line in various formats
+// Supported formats:
+//   - host:port
+//   - host|port
+//   - host:port:user:pass
+//   - host|port|user|pass
+//   - user:pass@host:port
+//   - socks5://user:pass@host:port (URL format)
+func ParseProxyLine(line string, defaultType string) (*ProxyInfo, error) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return nil, fmt.Errorf("empty line")
+	}
+
+	// Skip comments
+	if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+		return nil, fmt.Errorf("comment line")
+	}
+
+	proxy := &ProxyInfo{
+		Type:   defaultType,
+		Active: true,
+		Status: "untested",
+	}
+
+	// Check if it's a URL format (contains ://)
+	if strings.Contains(line, "://") {
+		return parseProxyURLFormat(line)
+	}
+
+	// Check if it's user:pass@host:port format
+	if strings.Contains(line, "@") {
+		return parseProxyAtFormat(line, defaultType)
+	}
+
+	// Determine delimiter (: or |)
+	delimiter := ":"
+	if strings.Contains(line, "|") {
+		delimiter = "|"
+	}
+
+	parts := strings.Split(line, delimiter)
+
+	switch len(parts) {
+	case 2:
+		// host:port or host|port
+		proxy.Host = strings.TrimSpace(parts[0])
+		port, err := parsePort(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid port: %s", parts[1])
+		}
+		proxy.Port = port
+
+	case 4:
+		// host:port:user:pass or host|port|user|pass
+		proxy.Host = strings.TrimSpace(parts[0])
+		port, err := parsePort(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid port: %s", parts[1])
+		}
+		proxy.Port = port
+		proxy.Username = strings.TrimSpace(parts[2])
+		proxy.Password = strings.TrimSpace(parts[3])
+
+	default:
+		return nil, fmt.Errorf("unsupported format: expected host:port or host:port:user:pass")
+	}
+
+	if proxy.Host == "" {
+		return nil, fmt.Errorf("empty host")
+	}
+
+	return proxy, nil
+}
+
+// parseProxyURLFormat parses URL format like socks5://user:pass@host:port
+func parseProxyURLFormat(line string) (*ProxyInfo, error) {
+	u, err := url.Parse(line)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL format: %v", err)
+	}
+
+	proxy := &ProxyInfo{
+		Type:   strings.ToLower(u.Scheme),
+		Host:   u.Hostname(),
+		Active: true,
+		Status: "untested",
+	}
+
+	// Parse port
+	portStr := u.Port()
+	if portStr == "" {
+		return nil, fmt.Errorf("missing port in URL")
+	}
+	port, err := parsePort(portStr)
+	if err != nil {
+		return nil, err
+	}
+	proxy.Port = port
+
+	// Parse credentials
+	if u.User != nil {
+		proxy.Username = u.User.Username()
+		if pass, ok := u.User.Password(); ok {
+			proxy.Password = pass
+		}
+	}
+
+	return proxy, nil
+}
+
+// parseProxyAtFormat parses user:pass@host:port format
+func parseProxyAtFormat(line string, defaultType string) (*ProxyInfo, error) {
+	atIdx := strings.LastIndex(line, "@")
+	if atIdx == -1 {
+		return nil, fmt.Errorf("invalid @ format")
+	}
+
+	authPart := line[:atIdx]
+	hostPart := line[atIdx+1:]
+
+	proxy := &ProxyInfo{
+		Type:   defaultType,
+		Active: true,
+		Status: "untested",
+	}
+
+	// Parse auth (user:pass)
+	authParts := strings.SplitN(authPart, ":", 2)
+	if len(authParts) == 2 {
+		proxy.Username = authParts[0]
+		proxy.Password = authParts[1]
+	} else {
+		proxy.Username = authPart
+	}
+
+	// Parse host:port
+	hostParts := strings.Split(hostPart, ":")
+	if len(hostParts) != 2 {
+		return nil, fmt.Errorf("invalid host:port format after @")
+	}
+
+	proxy.Host = strings.TrimSpace(hostParts[0])
+	port, err := parsePort(hostParts[1])
+	if err != nil {
+		return nil, err
+	}
+	proxy.Port = port
+
+	return proxy, nil
+}
+
+// parsePort converts a string to port number
+func parsePort(s string) (int, error) {
+	s = strings.TrimSpace(s)
+	var port int
+	_, err := fmt.Sscanf(s, "%d", &port)
+	if err != nil {
+		return 0, fmt.Errorf("invalid port number")
+	}
+	if port < 1 || port > 65535 {
+		return 0, fmt.Errorf("port out of range (1-65535)")
+	}
+	return port, nil
+}
+
+// ParseBulkProxies parses multiple proxy lines
+func ParseBulkProxies(lines []string, proxyType string) (*BulkImportResponse, error) {
+	response := &BulkImportResponse{
+		Success: true,
+		Proxies: []ProxyInfo{},
+		Errors:  []string{},
+	}
+
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		proxy, err := ParseProxyLine(line, proxyType)
+		if err != nil {
+			// Skip comment lines silently
+			if strings.Contains(err.Error(), "comment") {
+				continue
+			}
+			response.Failed++
+			response.Errors = append(response.Errors, fmt.Sprintf("Line %d: %s", i+1, err.Error()))
+			continue
+		}
+
+		response.Imported++
+		response.Proxies = append(response.Proxies, *proxy)
+	}
+
+	if response.Imported == 0 && response.Failed > 0 {
+		response.Success = false
+	}
+
+	return response, nil
 }

