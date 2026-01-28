@@ -253,9 +253,9 @@ func (api *InternalAPI) handleTelegramConfig(w http.ResponseWriter, r *http.Requ
 		defer r.Body.Close()
 
 		var req struct {
-			BotToken string `json:"bot_token"`
-			ChatId   string `json:"chat_id"`
-			Enabled  *bool  `json:"enabled"`
+			BotToken *string `json:"bot_token"`
+			ChatId   *string `json:"chat_id"`
+			Enabled  *bool   `json:"enabled"`
 		}
 		if err := json.Unmarshal(body, &req); err != nil {
 			http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
@@ -264,17 +264,33 @@ func (api *InternalAPI) handleTelegramConfig(w http.ResponseWriter, r *http.Requ
 
 		// Update via callback or directly
 		if api.setTelegramConfig != nil {
-			if err := api.setTelegramConfig(req.BotToken, req.ChatId, req.Enabled); err != nil {
+			// Construct a temporary config for the callback if it expects separate args
+			// But callback signature is setTelegramConfig(botToken, chatId string, enabled *bool)
+			// This expects strings. If we pass empty string, it works.
+			// But we need to distinguish "not present" vs "empty".
+			// Since callback doesn't support pointers for strings, we can't fully fix it there
+			// without changing the callback signature.
+			// However, standard flow uses direct config update.
+			// Ideally we assume the callback handles empty strings as "clear".
+			bt := ""
+			ci := ""
+			if req.BotToken != nil {
+				bt = *req.BotToken
+			}
+			if req.ChatId != nil {
+				ci = *req.ChatId
+			}
+			if err := api.setTelegramConfig(bt, ci, req.Enabled); err != nil {
 				http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 				return
 			}
 		} else {
-			// Direct config update
-			if req.BotToken != "" {
-				api.cfg.SetTelegramBotToken(req.BotToken)
+			// Direct config update - accept empty strings to clear values
+			if req.BotToken != nil {
+				api.cfg.SetTelegramBotToken(*req.BotToken)
 			}
-			if req.ChatId != "" {
-				api.cfg.SetTelegramChatId(req.ChatId)
+			if req.ChatId != nil {
+				api.cfg.SetTelegramChatId(*req.ChatId)
 			}
 			if req.Enabled != nil {
 				api.cfg.SetTelegramEnabled(*req.Enabled)
@@ -317,9 +333,9 @@ func (api *InternalAPI) handleTurnstileConfig(w http.ResponseWriter, r *http.Req
 		defer r.Body.Close()
 
 		var req struct {
-			SiteKey   string `json:"sitekey"`
-			SecretKey string `json:"secretkey"`
-			Enabled   *bool  `json:"enabled"`
+			SiteKey   *string `json:"sitekey"`
+			SecretKey *string `json:"secretkey"`
+			Enabled   *bool   `json:"enabled"`
 		}
 		if err := json.Unmarshal(body, &req); err != nil {
 			http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
@@ -328,17 +344,25 @@ func (api *InternalAPI) handleTurnstileConfig(w http.ResponseWriter, r *http.Req
 
 		// Update via callback or directly
 		if api.setTurnstileConfig != nil {
-			if err := api.setTurnstileConfig(req.SiteKey, req.SecretKey, req.Enabled); err != nil {
+			sk := ""
+			rk := ""
+			if req.SiteKey != nil {
+				sk = *req.SiteKey
+			}
+			if req.SecretKey != nil {
+				rk = *req.SecretKey
+			}
+			if err := api.setTurnstileConfig(sk, rk, req.Enabled); err != nil {
 				http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 				return
 			}
 		} else {
 			// Direct config update
-			if req.SiteKey != "" {
-				api.cfg.SetTurnstileSiteKey(req.SiteKey)
+			if req.SiteKey != nil {
+				api.cfg.SetTurnstileSiteKey(*req.SiteKey)
 			}
-			if req.SecretKey != "" {
-				api.cfg.SetTurnstileSecretKey(req.SecretKey)
+			if req.SecretKey != nil {
+				api.cfg.SetTurnstileSecretKey(*req.SecretKey)
 			}
 			if req.Enabled != nil {
 				api.cfg.SetTurnstileEnabled(*req.Enabled)
@@ -387,7 +411,14 @@ func (api *InternalAPI) handleProxyConfig(w http.ResponseWriter, r *http.Request
 		}
 		defer r.Body.Close()
 
-		var req ProxyConfig
+		var req struct {
+			Type     string `json:"type"`
+			Address  string `json:"address"`
+			Port     int    `json:"port"`
+			Username string `json:"username"`
+			Password string `json:"password"`
+			Enabled  *bool  `json:"enabled"`
+		}
 		if err := json.Unmarshal(body, &req); err != nil {
 			http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
 			return
@@ -395,12 +426,25 @@ func (api *InternalAPI) handleProxyConfig(w http.ResponseWriter, r *http.Request
 
 		// Update via callback or directly
 		if api.setProxyConfig != nil {
-			if err := api.setProxyConfig(&req); err != nil {
+			cfg := &ProxyConfig{
+				Type:     req.Type,
+				Address:  req.Address,
+				Port:     req.Port,
+				Username: req.Username,
+				Password: req.Password,
+			}
+			if req.Enabled != nil {
+				cfg.Enabled = *req.Enabled
+			}
+			if err := api.setProxyConfig(cfg); err != nil {
 				http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 				return
 			}
 		} else {
 			// Direct config update
+			if req.Enabled != nil {
+				api.cfg.EnableProxy(*req.Enabled)
+			}
 			if req.Type != "" {
 				api.cfg.SetProxyType(req.Type)
 			}
@@ -451,7 +495,6 @@ func (api *InternalAPI) handleProxyConfig(w http.ResponseWriter, r *http.Request
 					log.Info("internal-api: Proxy pool enabled, single proxy config saved but not applied to Tr.Dial")
 				}
 			}
-			api.cfg.EnableProxy(req.Enabled)
 		}
 
 		log.Info("internal-api: Proxy config updated")

