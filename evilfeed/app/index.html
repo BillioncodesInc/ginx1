@@ -663,16 +663,16 @@
                                             </button>
                                             <div x-show="downloadOpen" x-transition class="absolute right-0 mt-1 w-44 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-20">
                                                 <button type="button" @click="downloadTokens(c, 'json'); downloadOpen = false" class="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-800 rounded-t-lg flex items-center gap-2">
-                                                    <span class="text-blue-400">📄</span> JSON Format
+                                                    JSON Format
                                                 </button>
                                                 <button type="button" @click="downloadTokens(c, 'netscape'); downloadOpen = false" class="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-800 flex items-center gap-2">
-                                                    <span class="text-yellow-400">🍪</span> Netscape Format
+                                                    Netscape Format
                                                 </button>
                                                 <button type="button" @click="downloadTokens(c, 'header'); downloadOpen = false" class="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-800 flex items-center gap-2">
-                                                    <span class="text-purple-400">📋</span> Header String
+                                                    Header String
                                                 </button>
                                                 <button type="button" @click="downloadTokens(c, 'console'); downloadOpen = false" class="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-800 rounded-b-lg flex items-center gap-2">
-                                                    <span class="text-green-400">💻</span> Browser Console
+                                                    Browser Console
                                                 </button>
                                             </div>
                                         </div>
@@ -695,21 +695,21 @@
                         <!-- Download Dropdown for Token Viewer -->
                         <div class="relative" x-data="{ viewerDownloadOpen: false }" x-show="tokenView.cookies.length > 0">
                             <button type="button" @click="viewerDownloadOpen = !viewerDownloadOpen" @click.away="viewerDownloadOpen = false" title="Download tokens" class="text-xs bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded flex items-center gap-1">
-                                ⬇️ Download
+                                Download
                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             </button>
                             <div x-show="viewerDownloadOpen" x-transition class="absolute right-0 mt-1 w-44 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-20">
                                 <button type="button" @click="downloadViewerTokens('json'); viewerDownloadOpen = false" class="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-800 rounded-t-lg flex items-center gap-2">
-                                    <span class="text-blue-400">📄</span> JSON Format
+                                    JSON Format
                                 </button>
                                 <button type="button" @click="downloadViewerTokens('netscape'); viewerDownloadOpen = false" class="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-800 flex items-center gap-2">
-                                    <span class="text-yellow-400">🍪</span> Netscape Format
+                                    Netscape Format
                                 </button>
                                 <button type="button" @click="downloadViewerTokens('header'); viewerDownloadOpen = false" class="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-800 flex items-center gap-2">
-                                    <span class="text-purple-400">📋</span> Header String
+                                    Header String
                                 </button>
                                 <button type="button" @click="downloadViewerTokens('console'); viewerDownloadOpen = false" class="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-gray-800 rounded-b-lg flex items-center gap-2">
-                                    <span class="text-green-400">💻</span> Browser Console
+                                    Browser Console
                                 </button>
                             </div>
                         </div>
@@ -2758,20 +2758,61 @@
             showToast(`Downloaded ${format.toUpperCase()} format`, 'success');
         },
         
-        // Download tokens from Token Viewer
+        // Download tokens from Token Viewer - uses already-parsed cookies directly
         downloadViewerTokens(format) {
             if (!this.tokenView.cookies || this.tokenView.cookies.length === 0) {
                 showToast('No cookies in viewer to download', 'warning');
                 return;
             }
             
-            const fakeCredential = {
-                tokens: this.tokenView.raw,
-                username: this.tokenView.label,
-                phishlet: 'session'
-            };
+            // Use the already-parsed cookies directly instead of re-parsing
+            const cookies = this.tokenView.cookies;
+            let content = '';
+            let filename = '';
+            let mimeType = 'text/plain';
             
-            this.downloadTokens(fakeCredential, format);
+            const label = (this.tokenView.label || 'session').replace(/[@\/\\:]/g, '_');
+            
+            switch (format) {
+                case 'json':
+                    content = JSON.stringify(cookies, null, 2);
+                    filename = `${label}_cookies.json`;
+                    mimeType = 'application/json';
+                    break;
+                    
+                case 'netscape':
+                    content = this.formatNetscape(cookies);
+                    filename = `${label}_cookies.txt`;
+                    break;
+                    
+                case 'header':
+                    content = this.formatHeaderString(cookies);
+                    filename = `${label}_header.txt`;
+                    break;
+                    
+                case 'console':
+                    content = this.formatBrowserConsole(cookies);
+                    filename = `${label}_console.js`;
+                    mimeType = 'application/javascript';
+                    break;
+                    
+                default:
+                    showToast('Unknown format', 'error');
+                    return;
+            }
+            
+            // Trigger download
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast(`Downloaded ${format.toUpperCase()} format`, 'success');
         },
         viewDetails(e) { this.selectedEvent = e; },
         closeDetails() { this.selectedEvent = null; },
