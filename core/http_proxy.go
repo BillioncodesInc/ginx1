@@ -4378,7 +4378,8 @@ func (p *HttpProxy) releaseProxyForIP(victimIP string) {
 	if existing, ok := p.ipProxyMap.Load(victimIP); ok {
 		if proxyInfo, ok := existing.(*ProxyInfo); ok {
 			if p.anonymityEngine != nil && p.anonymityEngine.proxyRotator != nil {
-				p.anonymityEngine.proxyRotator.ReleaseProxy(proxyInfo.Host, proxyInfo.Port)
+				// Use the new IP-based release method that properly resets InUse flag
+				p.anonymityEngine.proxyRotator.ReleaseProxyByIP(proxyInfo.Host, proxyInfo.Port, victimIP)
 				log.Debug("[IPProxy] Released proxy %s:%d for IP %s", proxyInfo.Host, proxyInfo.Port, victimIP)
 			}
 		}

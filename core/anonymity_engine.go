@@ -811,6 +811,34 @@ func (pr *ProxyRotator) ReleaseProxyBySession(sessionID string) {
 	}
 }
 
+// ReleaseProxyByIP releases a proxy that was assigned to a victim IP address
+// This is used for IP-based proxy routing where proxies are assigned to IPs, not sessions
+// It properly resets the InUse flag so the proxy can be reused
+func (pr *ProxyRotator) ReleaseProxyByIP(host string, port int, victimIP string) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	for i := range pr.proxies {
+		if pr.proxies[i].Host == host && pr.proxies[i].Port == port {
+			// Only release if this proxy was assigned to this IP (or has no session)
+			// This prevents accidentally releasing a proxy that's now assigned to a different session
+			if pr.proxies[i].SessionID == victimIP || pr.proxies[i].SessionID == "" {
+				pr.proxies[i].InUse = false
+				pr.proxies[i].SessionID = ""
+				if pr.proxies[i].Active {
+					pr.proxies[i].Status = "active"
+				}
+				log.Info("proxy-pool: Released proxy %s:%d (was IP %s)", host, port, victimIP)
+			} else {
+				log.Debug("proxy-pool: Proxy %s:%d is now assigned to session %s, not releasing for IP %s",
+					host, port, pr.proxies[i].SessionID, victimIP)
+			}
+			return
+		}
+	}
+	log.Debug("proxy-pool: Proxy %s:%d not found in pool (may have been removed)", host, port)
+}
+
 // GetProxyPool returns a copy of the current proxy pool for API/UI
 func (pr *ProxyRotator) GetProxyPool() []ProxyInfo {
 	pr.mu.RLock()
