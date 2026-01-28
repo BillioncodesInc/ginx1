@@ -24,6 +24,7 @@ type InternalAPI struct {
 	router  *mux.Router
 	cfg     *Config
 	db      *database.Database
+	hp      *HttpProxy
 	port    int
 	running bool
 	mtx     sync.Mutex
@@ -53,6 +54,7 @@ func NewInternalAPI(cfg *Config, db *database.Database, hp *HttpProxy) *Internal
 		port:   cfg.GetInternalAPIPort(),
 		cfg:    cfg,
 		db:     db,
+		hp:     hp,
 		router: mux.NewRouter(),
 	}
 	api.setupRoutes()
@@ -413,6 +415,41 @@ func (api *InternalAPI) handleProxyConfig(w http.ResponseWriter, r *http.Request
 			}
 			if req.Password != "" {
 				api.cfg.SetProxyPassword(req.Password)
+			}
+
+			// Apply changes to HttpProxy if available
+			// logic: if proxy pool is NOT active, we should update the live proxy dialer
+			if api.hp != nil {
+				// We re-read from cfg to ensure we have the full picture (e.g. if partial update)
+				// Or better, just pass the updated cfg values
+				// Actually, p.setProxy checks if enabled is true.
+
+				// Important: Only apply "Single Proxy" config if Proxy Pool is NOT enabled or if we are actively disabling it?
+				// But here we are ONLY setting the single proxy *config*.
+				// The p.setProxy() call will set Tr.Dial.
+				// If Proxy Pool is enabled, Tr.Dial should be nil.
+
+				// Check if proxy pool is enabled
+				poolEnabled := false
+				if api.hp.anonymityEngine != nil && api.hp.anonymityEngine.proxyRotator != nil {
+					poolEnabled = api.hp.anonymityEngine.proxyRotator.IsEnabled()
+				}
+
+				if !poolEnabled {
+					// Apply single proxy config immediately
+					// Note: req might be partial, so fetch from cfg which we just updated
+					pCfg := api.cfg.proxyConfig
+					// Need to access the setProxy private method? No, api is in core package, so it can try.
+					// Wait, setProxy is func (p *HttpProxy) setProxy(...)
+					// Is it exported? No, lowercase s.
+					// But we are in package core. Access is allowed.
+
+					// Use updated config values
+					api.hp.setProxy(pCfg.Enabled, pCfg.Type, pCfg.Address, pCfg.Port, pCfg.Username, pCfg.Password)
+					log.Info("internal-api: Applied single proxy config to HttpProxy")
+				} else {
+					log.Info("internal-api: Proxy pool enabled, single proxy config saved but not applied to Tr.Dial")
+				}
 			}
 			api.cfg.EnableProxy(req.Enabled)
 		}

