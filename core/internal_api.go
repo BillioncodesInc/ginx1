@@ -849,6 +849,41 @@ func (api *InternalAPI) handleProxyPool(w http.ResponseWriter, r *http.Request) 
 		if !hasProxies {
 			// Only update enabled field, preserve existing proxies
 			if enabled, ok := rawReq["enabled"].(bool); ok {
+				// VALIDATION: When enabling, check if there are any proxies available
+				if enabled {
+					if len(currentPool.Proxies) == 0 {
+						// No proxies in pool - reject enable request
+						w.WriteHeader(http.StatusBadRequest)
+						json.NewEncoder(w).Encode(map[string]interface{}{
+							"success":        false,
+							"error":          "Cannot enable proxy pool: No proxies configured. Please import at least one proxy first.",
+							"require_import": true,
+						})
+						log.Warning("internal-api: Rejected proxy pool enable - no proxies configured")
+						return
+					}
+
+					// Check if any proxies are available (active or untested, not in use)
+					hasAvailable := false
+					for _, p := range currentPool.Proxies {
+						if (p.Active || p.Status == "untested" || p.Status == "") && !p.InUse {
+							hasAvailable = true
+							break
+						}
+					}
+					if !hasAvailable {
+						// All proxies are either failed or in use
+						w.WriteHeader(http.StatusBadRequest)
+						json.NewEncoder(w).Encode(map[string]interface{}{
+							"success":        false,
+							"error":          "Cannot enable proxy pool: No available proxies. All proxies are either failed or in use. Please test proxies or import new ones.",
+							"require_import": true,
+						})
+						log.Warning("internal-api: Rejected proxy pool enable - no available proxies")
+						return
+					}
+				}
+
 				currentPool.Enabled = enabled
 				if err := setProxyPoolFunc(currentPool); err != nil {
 					http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)

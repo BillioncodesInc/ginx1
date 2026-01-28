@@ -2490,9 +2490,30 @@ func (t *Terminal) handleProxyPool(args []string) error {
 
 	switch args[0] {
 	case "enable":
+		// Validate: Check if there are any proxies in the pool
+		pool := t.p.anonymityEngine.proxyRotator.GetProxyPool()
+		if len(pool) == 0 {
+			log.Error("[ProxyPool] Cannot enable: No proxies configured. Use 'proxy add' or import proxies via EvilFeed first.")
+			return nil
+		}
+
+		// Check if any proxies are available (active or untested, not in use)
+		hasAvailable := false
+		for _, p := range pool {
+			if (p.Active || p.Status == "untested" || p.Status == "") && !p.InUse {
+				hasAvailable = true
+				break
+			}
+		}
+		if !hasAvailable {
+			log.Error("[ProxyPool] Cannot enable: No available proxies. All %d proxies are either failed or in use.", len(pool))
+			log.Info("  Use 'proxypool list' to see proxy status, or add new proxies.")
+			return nil
+		}
+
 		t.p.anonymityEngine.proxyRotator.SetEnabled(true)
 		t.cfg.SetProxyPoolEnabled(true)
-		log.Success("[ProxyPool] Enabled - session-sticky proxy rotation is now active")
+		log.Success("[ProxyPool] Enabled - session-sticky proxy rotation is now active (%d proxies available)", len(pool))
 		return nil
 
 	case "disable":

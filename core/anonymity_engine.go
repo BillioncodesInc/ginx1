@@ -923,6 +923,32 @@ func (pr *ProxyRotator) IsEnabled() bool {
 	return pr.config != nil && pr.config.Enabled
 }
 
+// HasAvailableProxies checks if there are any proxies that can be used
+// Returns true if there's at least one proxy that is active (or untested) and not in use
+func (pr *ProxyRotator) HasAvailableProxies() bool {
+	pr.mu.RLock()
+	defer pr.mu.RUnlock()
+
+	if len(pr.proxies) == 0 {
+		return false
+	}
+
+	for _, p := range pr.proxies {
+		// A proxy is available if it's active (or untested) and not currently in use
+		if (p.Active || p.Status == "untested" || p.Status == "") && !p.InUse {
+			return true
+		}
+	}
+	return false
+}
+
+// GetProxyCount returns the total number of proxies in the pool
+func (pr *ProxyRotator) GetProxyCount() int {
+	pr.mu.RLock()
+	defer pr.mu.RUnlock()
+	return len(pr.proxies)
+}
+
 // SetEnabled enables or disables proxy rotation
 func (pr *ProxyRotator) SetEnabled(enabled bool) {
 	pr.mu.Lock()
@@ -990,6 +1016,7 @@ func SetProxyPoolEnabledCallback(callback func(enabled bool)) {
 }
 
 // TestProxy tests a single proxy and returns success status and origin IP
+// IMPORTANT: This preserves InUse state - testing doesn't affect session assignments
 func (pr *ProxyRotator) TestProxy(index int) (bool, string, error) {
 	pr.mu.RLock()
 	if index < 0 || index >= len(pr.proxies) {
@@ -997,6 +1024,8 @@ func (pr *ProxyRotator) TestProxy(index int) (bool, string, error) {
 		return false, "", fmt.Errorf("invalid proxy index")
 	}
 	proxy := pr.proxies[index]
+	wasInUse := proxy.InUse
+	sessionID := proxy.SessionID
 	pr.mu.RUnlock()
 
 	success, originIP, latencyMs := testProxyDirect(&proxy)
@@ -1012,7 +1041,6 @@ func (pr *ProxyRotator) TestProxy(index int) (bool, string, error) {
 		pr.proxies[index].Latency = time.Duration(latencyMs) * time.Millisecond
 		if success {
 			pr.proxies[index].Active = true
-			pr.proxies[index].Status = "active"
 			pr.proxies[index].SuccessRate = pr.proxies[index].SuccessRate*0.9 + 0.1
 			// Store geo info
 			if country != "" {
@@ -1021,10 +1049,24 @@ func (pr *ProxyRotator) TestProxy(index int) (bool, string, error) {
 			if city != "" {
 				pr.proxies[index].Region = city // Store city in Region field
 			}
+			// PRESERVE InUse state - don't overwrite if proxy is assigned to a session
+			if wasInUse {
+				pr.proxies[index].InUse = true
+				pr.proxies[index].SessionID = sessionID
+				pr.proxies[index].Status = "in_use"
+			} else {
+				// Proxy is available - mark as active for assignment
+				pr.proxies[index].InUse = false
+				pr.proxies[index].SessionID = ""
+				pr.proxies[index].Status = "active"
+			}
 		} else {
 			pr.proxies[index].Active = false
 			pr.proxies[index].Status = "failed"
 			pr.proxies[index].SuccessRate *= 0.9
+			// Release from session if it was in use (failed proxy can't serve traffic)
+			pr.proxies[index].InUse = false
+			pr.proxies[index].SessionID = ""
 		}
 	}
 	pr.mu.Unlock()

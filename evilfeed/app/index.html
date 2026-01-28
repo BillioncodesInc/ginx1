@@ -2925,7 +2925,26 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enabled: this.proxyPool.enabled })
                 });
-                if (!res.ok) throw new Error(await res.text());
+                
+                // Parse response to check for validation errors
+                const data = await res.json().catch(() => ({}));
+                
+                if (!res.ok || data.success === false) {
+                    // Server rejected the enable request - revert toggle
+                    this.proxyPool.enabled = !this.proxyPool.enabled;
+                    
+                    // Show appropriate error message
+                    if (data.require_import) {
+                        // No proxies available - prompt user to import
+                        showToast(data.error || 'No proxies available. Please import proxies first.', 'error');
+                        // Optionally scroll to import section or highlight it
+                        this.activeTab = 'proxy';
+                    } else {
+                        showToast(data.error || 'Failed to enable proxy pool', 'error');
+                    }
+                    return;
+                }
+                
                 showToast(this.proxyPool.enabled ? 'Proxy pool enabled!' : 'Proxy pool disabled', 'success');
             } catch (e) {
                 showToast('Failed to toggle pool: ' + e.message, 'error');
