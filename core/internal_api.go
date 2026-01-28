@@ -782,14 +782,48 @@ func (api *InternalAPI) handleProxyPool(w http.ResponseWriter, r *http.Request) 
 		}
 		defer r.Body.Close()
 
-		var pool ProxyPoolConfig
-		if err := json.Unmarshal(body, &pool); err != nil {
+		// Parse as a map first to check what fields are provided
+		var rawReq map[string]interface{}
+		if err := json.Unmarshal(body, &rawReq); err != nil {
 			http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
 			return
 		}
 
-		if setProxyPoolFunc == nil {
+		if setProxyPoolFunc == nil || getProxyPoolFunc == nil {
 			http.Error(w, `{"error":"proxy pool not initialized"}`, http.StatusServiceUnavailable)
+			return
+		}
+
+		// Get current pool
+		currentPool := getProxyPoolFunc()
+		if currentPool == nil {
+			currentPool = &ProxyPoolConfig{Enabled: false, Proxies: []ProxyInfo{}}
+		}
+
+		// Check if this is just an enable/disable toggle (no proxies field provided)
+		_, hasProxies := rawReq["proxies"]
+		if !hasProxies {
+			// Only update enabled field, preserve existing proxies
+			if enabled, ok := rawReq["enabled"].(bool); ok {
+				currentPool.Enabled = enabled
+				if err := setProxyPoolFunc(currentPool); err != nil {
+					http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+					return
+				}
+				log.Info("internal-api: Proxy pool enabled=%v (preserved %d proxies)", enabled, len(currentPool.Proxies))
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"success": true,
+					"enabled": enabled,
+					"count":   len(currentPool.Proxies),
+				})
+				return
+			}
+		}
+
+		// Full pool update - parse the complete config
+		var pool ProxyPoolConfig
+		if err := json.Unmarshal(body, &pool); err != nil {
+			http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
 			return
 		}
 
@@ -885,6 +919,30 @@ func (api *InternalAPI) handleProxyBulkImport(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
+	}
+
+	// Actually add the parsed proxies to the pool
+	if len(result.Proxies) > 0 && setProxyPoolFunc != nil {
+		// Get current pool first
+		var currentPool *ProxyPoolConfig
+		if getProxyPoolFunc != nil {
+			currentPool = getProxyPoolFunc()
+		}
+		if currentPool == nil {
+			currentPool = &ProxyPoolConfig{Enabled: false, Proxies: []ProxyInfo{}}
+		}
+
+		// Append new proxies to existing pool
+		currentPool.Proxies = append(currentPool.Proxies, result.Proxies...)
+
+		// Save the updated pool
+		if err := setProxyPoolFunc(currentPool); err != nil {
+			log.Error("internal-api: Failed to save proxy pool: %v", err)
+			http.Error(w, fmt.Sprintf(`{"error":"failed to save proxy pool: %s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		log.Info("internal-api: Bulk import added %d proxies to pool (total: %d)", len(result.Proxies), len(currentPool.Proxies))
 	}
 
 	log.Info("internal-api: Bulk import parsed %d proxies (%d failed) with type %s", result.Imported, result.Failed, proxyType)
