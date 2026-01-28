@@ -131,6 +131,8 @@ func (api *InternalAPI) setupRoutes() {
 	api.router.HandleFunc("/_proxy/pool", api.handleProxyPool).Methods("GET", "POST")
 	api.router.HandleFunc("/_proxy/pool/stats", api.handleProxyPoolStats).Methods("GET")
 	api.router.HandleFunc("/_proxy/pool/import", api.handleProxyBulkImport).Methods("POST")
+	api.router.HandleFunc("/_proxy/pool/test-all", api.handleProxyPoolTestAll).Methods("POST")
+	api.router.HandleFunc("/_proxy/pool/clear-failed", api.handleProxyPoolClearFailed).Methods("POST")
 	api.router.HandleFunc("/_proxy/test", api.handleProxyTest).Methods("POST")
 
 	// Anonymity config
@@ -1236,6 +1238,69 @@ func parsePort(s string) (int, error) {
 		return 0, fmt.Errorf("port out of range (1-65535)")
 	}
 	return port, nil
+}
+
+// Callback functions for test-all and clear-failed (set by HttpProxy)
+var (
+	testAllProxiesFunc     func() (total, passed, failed int)
+	clearFailedProxiesFunc func() int
+)
+
+// SetProxyPoolTestCallbacks sets the callback functions for testing and clearing proxies
+func SetProxyPoolTestCallbacks(
+	testAll func() (total, passed, failed int),
+	clearFailed func() int,
+) {
+	testAllProxiesFunc = testAll
+	clearFailedProxiesFunc = clearFailed
+}
+
+// handleProxyPoolTestAll tests all proxies in the pool
+func (api *InternalAPI) handleProxyPoolTestAll(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != "POST" {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	if testAllProxiesFunc == nil {
+		http.Error(w, `{"error":"test function not initialized"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	total, passed, failed := testAllProxiesFunc()
+	log.Info("internal-api: Tested all proxies - total: %d, passed: %d, failed: %d", total, passed, failed)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"total":   total,
+		"passed":  passed,
+		"failed":  failed,
+	})
+}
+
+// handleProxyPoolClearFailed removes all failed proxies from the pool
+func (api *InternalAPI) handleProxyPoolClearFailed(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != "POST" {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	if clearFailedProxiesFunc == nil {
+		http.Error(w, `{"error":"clear function not initialized"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	removed := clearFailedProxiesFunc()
+	log.Info("internal-api: Cleared %d failed proxies", removed)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"removed": removed,
+	})
 }
 
 // ParseBulkProxies parses multiple proxy lines

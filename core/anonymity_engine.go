@@ -803,8 +803,16 @@ func (pr *ProxyRotator) SetProxyPool(proxies []ProxyInfo) {
 		if proxies[i].Status == "" {
 			proxies[i].Status = "untested"
 		}
-		if !proxies[i].Active && proxies[i].Status == "untested" {
-			proxies[i].Active = true // Default to active for new proxies
+		// For untested proxies, always set Active to true so they can be used
+		// Only failed proxies should have Active = false
+		if proxies[i].Status == "untested" || proxies[i].Status == "active" {
+			proxies[i].Active = true
+		}
+		// Ensure InUse is false for new/imported proxies (unless explicitly set)
+		// This prevents proxies from being stuck in "in use" state after import
+		if proxies[i].Status == "untested" {
+			proxies[i].InUse = false
+			proxies[i].SessionID = ""
 		}
 	}
 

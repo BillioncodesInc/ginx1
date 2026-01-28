@@ -1700,14 +1700,27 @@
         },
 
         connectWS() {
-          const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-          // Detect base path from current URL (e.g., /admin/) and include it in WebSocket URL
-          let basePath = '';
+          // Detect if we're being accessed via /admin/ proxy (through Evilginx)
           const pathParts = location.pathname.split('/').filter(p => p);
-          if (pathParts.length > 0 && (pathParts[0] === 'admin' || pathParts[0] === 'feed')) {
-            basePath = '/' + pathParts[0];
+          const isProxied = pathParts.length > 0 && (pathParts[0] === 'admin' || pathParts[0] === 'feed');
+          
+          let wsUrl;
+          if (isProxied) {
+            // When accessed via /admin/, we need to connect to EvilFeed directly
+            // Since goproxy can't handle WebSocket proxying, we connect to port 1337
+            // on the same hostname (the server, not localhost from browser perspective)
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const hostname = location.hostname; // Server hostname
+            wsUrl = `${protocol}//${hostname}:1337/ws`;
+            console.log("[WS] Proxied access detected, connecting to EvilFeed on port 1337");
+          } else {
+            // Direct access - use same host
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            wsUrl = `${protocol}//${location.host}/ws`;
           }
-          const ws = new WebSocket(`${protocol}//${location.host}${basePath}/ws`);
+          
+          console.log("[WS] Connecting to:", wsUrl);
+          const ws = new WebSocket(wsUrl);
           
           ws.onopen = () => {
               this.connected = true;

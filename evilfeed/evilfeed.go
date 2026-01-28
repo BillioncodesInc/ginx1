@@ -2524,13 +2524,24 @@ func handleProxyPoolTestAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This would trigger testing all proxies - for now just return success
-	// The actual testing happens asynchronously in Evilginx
+	// Forward to Evilginx internal API
+	resp, err := evilginxClient.Post(getEvilginxAPIURL("/_proxy/pool/test-all"), "application/json", nil)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("Failed to test proxies: %v", err),
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	// Forward the response from Evilginx
+	respBody, _ := io.ReadAll(resp.Body)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "Testing all proxies in background",
-	})
+	w.WriteHeader(resp.StatusCode)
+	w.Write(respBody)
 }
 
 // handleProxyPoolClearFailed handles POST to remove all failed proxies
