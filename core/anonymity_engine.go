@@ -755,13 +755,19 @@ func (pr *ProxyRotator) GetAvailableProxy(sessionID string) (*ProxyInfo, error) 
 		}
 	}
 
-	// Find first available proxy that is active and not in use
+	// Find first available proxy that is active (or untested) and not in use
 	for i := range pr.proxies {
-		if pr.proxies[i].Active && !pr.proxies[i].InUse {
+		// Accept proxies that are: Active=true OR Status is untested/empty (new proxies)
+		// Reject proxies that are: InUse=true OR Status="failed"
+		isAvailable := !pr.proxies[i].InUse && pr.proxies[i].Status != "failed"
+		isUsable := pr.proxies[i].Active || pr.proxies[i].Status == "untested" || pr.proxies[i].Status == ""
+
+		if isAvailable && isUsable {
 			pr.proxies[i].InUse = true
 			pr.proxies[i].SessionID = sessionID
 			pr.proxies[i].LastUsed = time.Now()
 			pr.proxies[i].Status = "in_use"
+			pr.proxies[i].Active = true // Mark as active since we're using it
 
 			// Return a copy to avoid race conditions
 			proxyCopy := pr.proxies[i]
@@ -855,21 +861,17 @@ func (pr *ProxyRotator) SetProxyPool(proxies []ProxyInfo) {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
 
-	// Initialize status for new proxies
+	// Initialize status for new proxies - FORCE all proxies to be available
 	for i := range proxies {
-		if proxies[i].Status == "" {
-			proxies[i].Status = "untested"
-		}
-		// For untested proxies, always set Active to true so they can be used
-		// Only failed proxies should have Active = false
-		if proxies[i].Status == "untested" || proxies[i].Status == "active" {
-			proxies[i].Active = true
-		}
-		// ALWAYS reset InUse and SessionID when pool is updated
-		// This prevents proxies from being stuck in "in use" state
-		// The IP-to-proxy mappings in http_proxy.go will re-assign as needed
+		// ALWAYS set Active=true and InUse=false for fresh pool
+		// This ensures proxies are immediately usable
+		proxies[i].Active = true
 		proxies[i].InUse = false
 		proxies[i].SessionID = ""
+		proxies[i].Status = "active" // Force active status for immediate use
+
+		log.Debug("proxy-pool: Reset proxy %d: %s:%d Active=%v InUse=%v Status=%s",
+			i, proxies[i].Host, proxies[i].Port, proxies[i].Active, proxies[i].InUse, proxies[i].Status)
 	}
 
 	pr.proxies = proxies
