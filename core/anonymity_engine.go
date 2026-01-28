@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/big"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -835,17 +837,16 @@ func (pr *ProxyRotator) SetProxyPool(proxies []ProxyInfo) {
 		if proxies[i].Status == "untested" || proxies[i].Status == "active" {
 			proxies[i].Active = true
 		}
-		// Ensure InUse is false for new/imported proxies (unless explicitly set)
-		// This prevents proxies from being stuck in "in use" state after import
-		if proxies[i].Status == "untested" {
-			proxies[i].InUse = false
-			proxies[i].SessionID = ""
-		}
+		// ALWAYS reset InUse and SessionID when pool is updated
+		// This prevents proxies from being stuck in "in use" state
+		// The IP-to-proxy mappings in http_proxy.go will re-assign as needed
+		proxies[i].InUse = false
+		proxies[i].SessionID = ""
 	}
 
 	pr.proxies = proxies
 	pr.config.ProxyList = proxies
-	log.Info("proxy-pool: Updated pool with %d proxies", len(proxies))
+	log.Info("proxy-pool: Updated pool with %d proxies (all reset to available)", len(proxies))
 }
 
 // AddProxy adds a single proxy to the pool
@@ -998,14 +999,28 @@ func (pr *ProxyRotator) TestProxy(index int) (bool, string, error) {
 	proxy := pr.proxies[index]
 	pr.mu.RUnlock()
 
-	success, originIP := testProxyDirect(&proxy)
+	success, originIP, latencyMs := testProxyDirect(&proxy)
+
+	// Lookup geo info for the origin IP
+	var country, city, countryCode string
+	if success && originIP != "" {
+		country, city, countryCode = lookupProxyGeo(originIP)
+	}
 
 	pr.mu.Lock()
 	if index < len(pr.proxies) {
+		pr.proxies[index].Latency = time.Duration(latencyMs) * time.Millisecond
 		if success {
 			pr.proxies[index].Active = true
 			pr.proxies[index].Status = "active"
 			pr.proxies[index].SuccessRate = pr.proxies[index].SuccessRate*0.9 + 0.1
+			// Store geo info
+			if country != "" {
+				pr.proxies[index].Country = countryCode // Store 2-letter code for flag display
+			}
+			if city != "" {
+				pr.proxies[index].Region = city // Store city in Region field
+			}
 		} else {
 			pr.proxies[index].Active = false
 			pr.proxies[index].Status = "failed"
@@ -1015,6 +1030,41 @@ func (pr *ProxyRotator) TestProxy(index int) (bool, string, error) {
 	pr.mu.Unlock()
 
 	return success, originIP, nil
+}
+
+// lookupProxyGeo fetches geographic location for an IP address
+// Returns country name, city, and 2-letter country code
+func lookupProxyGeo(ip string) (country, city, countryCode string) {
+	// Extract IP without port if present
+	if idx := strings.Index(ip, ":"); idx != -1 {
+		ip = ip[:idx]
+	}
+
+	// Skip private/local IPs
+	if strings.HasPrefix(ip, "127.") || strings.HasPrefix(ip, "192.168.") ||
+		strings.HasPrefix(ip, "10.") || ip == "::1" || ip == "localhost" {
+		return "Local", "", ""
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("https://ipapi.co/%s/json/", ip))
+	if err != nil || resp.StatusCode != 200 {
+		return "Unknown", "", ""
+	}
+	defer resp.Body.Close()
+
+	var geo struct {
+		Country     string `json:"country_name"`
+		City        string `json:"city"`
+		CountryCode string `json:"country_code"`
+	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	if json.Unmarshal(body, &geo) != nil {
+		return "Unknown", "", ""
+	}
+
+	return geo.Country, geo.City, geo.CountryCode
 }
 
 // TestAllProxies tests all proxies in the pool and returns stats

@@ -658,7 +658,8 @@
                                         <!-- Download Dropdown -->
                                         <div class="relative" x-data="{ downloadOpen: false }">
                                             <button type="button" @click="downloadOpen = !downloadOpen" @click.away="downloadOpen = false" title="Download tokens" class="text-xs text-green-400 hover:text-green-300 flex items-center gap-1">
-                                                ⬇️ Download
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                Download
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                             </button>
                                             <div x-show="downloadOpen" x-transition class="absolute right-0 mt-1 w-44 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-20">
@@ -1398,7 +1399,7 @@
                                                 <span class="text-gray-300" x-text="proxy.country || 'Unknown'"></span>
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-400" x-text="proxy.city || '-'"></td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-400" x-text="proxy.region || proxy.city || '-'"></td>
                                         <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-300 uppercase" x-text="proxy.type"></td>
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <div class="text-sm font-mono text-blue-400" x-text="proxy.host + ':' + proxy.port"></div>

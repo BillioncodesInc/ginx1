@@ -244,7 +244,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		},
 		// testProxy
 		func(proxy *ProxyInfo) (bool, string, error) {
-			success, originIP := testProxyDirect(proxy)
+			success, originIP, _ := testProxyDirect(proxy)
 			if !success {
 				return false, "", fmt.Errorf("proxy connection failed")
 			}

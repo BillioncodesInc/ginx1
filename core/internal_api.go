@@ -766,13 +766,55 @@ func (api *InternalAPI) handleProxyPool(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		pool := getProxyPoolFunc()
-		// Mask passwords in response
-		for i := range pool.Proxies {
-			if pool.Proxies[i].Password != "" {
-				pool.Proxies[i].Password = "********"
+
+		// Create response with latency in milliseconds (not nanoseconds)
+		type ProxyInfoResponse struct {
+			Type        string  `json:"type"`
+			Host        string  `json:"host"`
+			Port        int     `json:"port"`
+			Username    string  `json:"username,omitempty"`
+			Password    string  `json:"password,omitempty"`
+			Country     string  `json:"country,omitempty"`
+			Region      string  `json:"region,omitempty"`
+			SuccessRate float64 `json:"success_rate"`
+			Latency     int64   `json:"latency"` // milliseconds
+			Active      bool    `json:"active"`
+			InUse       bool    `json:"in_use"`
+			SessionID   string  `json:"session_id,omitempty"`
+			Status      string  `json:"status,omitempty"`
+		}
+		type PoolResponse struct {
+			Enabled bool                `json:"enabled"`
+			Proxies []ProxyInfoResponse `json:"proxies"`
+		}
+
+		resp := PoolResponse{
+			Enabled: pool.Enabled,
+			Proxies: make([]ProxyInfoResponse, len(pool.Proxies)),
+		}
+
+		for i, p := range pool.Proxies {
+			password := ""
+			if p.Password != "" {
+				password = "********"
+			}
+			resp.Proxies[i] = ProxyInfoResponse{
+				Type:        p.Type,
+				Host:        p.Host,
+				Port:        p.Port,
+				Username:    p.Username,
+				Password:    password,
+				Country:     p.Country,
+				Region:      p.Region,
+				SuccessRate: p.SuccessRate,
+				Latency:     p.Latency.Milliseconds(), // Convert to milliseconds
+				Active:      p.Active,
+				InUse:       p.InUse,
+				SessionID:   p.SessionID,
+				Status:      p.Status,
 			}
 		}
-		json.NewEncoder(w).Encode(pool)
+		json.NewEncoder(w).Encode(resp)
 		return
 	}
 
@@ -1002,15 +1044,18 @@ func (api *InternalAPI) handleProxyTest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Fallback: test proxy directly
-	success, originIP := testProxyDirect(&proxy)
+	success, originIP, latencyMs := testProxyDirect(&proxy)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":   success,
-		"origin_ip": originIP,
+		"success":    success,
+		"origin_ip":  originIP,
+		"latency_ms": latencyMs,
 	})
 }
 
 // testProxyDirect tests a proxy by making a request to httpbin.org/ip
-func testProxyDirect(proxy *ProxyInfo) (bool, string) {
+// testProxyDirect tests a proxy by making a request to httpbin.org/ip
+// Returns: success, originIP, latencyMs
+func testProxyDirect(proxy *ProxyInfo) (bool, string, int64) {
 	import_url := fmt.Sprintf("%s://%s:%d", proxy.Type, proxy.Host, proxy.Port)
 	if proxy.Username != "" && proxy.Password != "" {
 		import_url = fmt.Sprintf("%s://%s:%s@%s:%d", proxy.Type, proxy.Username, proxy.Password, proxy.Host, proxy.Port)
@@ -1018,7 +1063,7 @@ func testProxyDirect(proxy *ProxyInfo) (bool, string) {
 
 	proxyURL, err := parseProxyURL(import_url)
 	if err != nil {
-		return false, ""
+		return false, "", 0
 	}
 
 	transport := &http.Transport{
@@ -1030,9 +1075,12 @@ func testProxyDirect(proxy *ProxyInfo) (bool, string) {
 		Timeout:   15 * time.Second,
 	}
 
+	start := time.Now()
 	resp, err := client.Get("https://httpbin.org/ip")
+	latencyMs := time.Since(start).Milliseconds()
+
 	if err != nil {
-		return false, ""
+		return false, "", latencyMs
 	}
 	defer resp.Body.Close()
 
@@ -1040,10 +1088,10 @@ func testProxyDirect(proxy *ProxyInfo) (bool, string) {
 		Origin string `json:"origin"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return false, ""
+		return false, "", latencyMs
 	}
 
-	return true, result.Origin
+	return true, result.Origin, latencyMs
 }
 
 // parseProxyURL parses a proxy URL string
