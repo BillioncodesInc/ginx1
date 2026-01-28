@@ -716,14 +716,41 @@ func (pr *ProxyRotator) performHealthCheck() {
 // SESSION-STICKY PROXY ROTATION METHODS
 // ============================================
 
+// GetProxyForSession returns the proxy already assigned to a session (if any)
+// This does NOT assign a new proxy - use GetAvailableProxy for that
+func (pr *ProxyRotator) GetProxyForSession(sessionID string) *ProxyInfo {
+	pr.mu.RLock()
+	defer pr.mu.RUnlock()
+
+	for i := range pr.proxies {
+		if pr.proxies[i].SessionID == sessionID && pr.proxies[i].InUse {
+			// Return a copy to avoid race conditions
+			proxyCopy := pr.proxies[i]
+			return &proxyCopy
+		}
+	}
+	return nil
+}
+
 // GetAvailableProxy finds and reserves an available proxy for a session
 // Returns a copy of the proxy info to avoid race conditions
+// IMPORTANT: Call GetProxyForSession first to check if session already has a proxy
 func (pr *ProxyRotator) GetAvailableProxy(sessionID string) (*ProxyInfo, error) {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
 
 	if len(pr.proxies) == 0 {
 		return nil, fmt.Errorf("no proxies configured in pool")
+	}
+
+	// FIRST: Check if this session already has a proxy assigned
+	for i := range pr.proxies {
+		if pr.proxies[i].SessionID == sessionID && pr.proxies[i].InUse {
+			// Session already has a proxy - return it without assigning a new one
+			proxyCopy := pr.proxies[i]
+			log.Debug("proxy-pool: Reusing existing proxy %s:%d for session %s", proxyCopy.Host, proxyCopy.Port, sessionID)
+			return &proxyCopy, nil
+		}
 	}
 
 	// Find first available proxy that is active and not in use

