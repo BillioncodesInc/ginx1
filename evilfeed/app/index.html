@@ -1686,6 +1686,13 @@
         bulkProxyImport: '',
         bulkImportType: 'http',
         bulkImportPreview: [],
+        // Confirmation modal state
+        confirmModal: {
+            show: false,
+            title: '',
+            message: '',
+            confirm: () => {}
+        },
 
         init() {
           // Load notification preferences from localStorage
@@ -2711,14 +2718,27 @@
             this.loadWhitelist();
         },
         async clearLogs() {
-            if(confirm('Clear all logs?')) {
-                await fetch('/api/logs/clear', { method: 'POST' });
-                this.events = [];
-                this.visitorData = [];
-                this.credentialData = [];
-                this.stats = {sessions:0, creds:0, real:0, bots:0, total:0};
-                this.uniqueIPs.clear();
-            }
+            this.showConfirm(
+                'Clear All Logs?', 
+                'This will permanently delete all events, sessions, and visitor data. This action cannot be undone.', 
+                async () => {
+                    await fetch('/api/logs/clear', { method: 'POST' });
+                    this.events = [];
+                    this.visitorData = [];
+                    this.credentialData = [];
+                    this.stats = {sessions:0, creds:0, real:0, bots:0, total:0};
+                    this.uniqueIPs.clear();
+                    showToast('Logs cleared successfully', 'success');
+                }
+            );
+        },
+        showConfirm(title, message, onConfirm) {
+            this.confirmModal = {
+                show: true,
+                title,
+                message,
+                confirm: onConfirm
+            };
         },
         async logout() {
             await fetch('/api/logout', { method: 'POST' });
@@ -3415,5 +3435,25 @@
       }
     }
   </script>
+
+  <!-- Confirmation Modal -->
+  <div x-show="confirmModal.show" x-cloak @click.self="confirmModal.show = false" 
+       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+      <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 max-w-md w-full mx-4 shadow-2xl">
+          <h3 class="text-xl font-semibold text-white mb-4" x-text="confirmModal.title"></h3>
+          <p class="text-gray-300 mb-6" x-text="confirmModal.message"></p>
+          <div class="flex gap-3 justify-end">
+              <button @click="confirmModal.show = false" 
+                      class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors">
+                  Cancel
+              </button>
+              <button @click="confirmModal.confirm(); confirmModal.show = false" 
+                      class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-colors">
+                  Confirm
+              </button>
+          </div>
+      </div>
+  </div>
+
 </body>
 </html>

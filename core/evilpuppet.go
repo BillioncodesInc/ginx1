@@ -284,30 +284,37 @@ func GetGlobalBrowser() (*rod.Browser, error) {
 	globalBrowserLock.Lock()
 	defer globalBrowserLock.Unlock()
 
-	// If we already have a connected browser, return it
+	// CRITICAL FIX: Health check for existing browser connection
 	if globalBrowser != nil {
-		return globalBrowser, nil
+		// Verify connection is still alive with lightweight operation
+		if _, err := globalBrowser.Version(); err != nil {
+			log.Warning("[GoogleBypasser] Browser connection lost: %v. Reconnecting...", err)
+			globalBrowser = nil // Force re-initialization
+		} else {
+			// Connection is healthy
+			return globalBrowser, nil
+		}
 	}
 
 	// Ensure Chrome is running
 	if err := ensureChromeRunning(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start Chrome: %v", err)
 	}
 
 	// Get WebSocket URL
 	wsURL, err := getWebSocketDebuggerURL()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get WebSocket URL: %v", err)
 	}
 
 	// Create and connect browser
 	browser := rod.New().ControlURL(wsURL)
 	if err := browser.Connect(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to browser: %v", err)
 	}
 
 	globalBrowser = browser
-	log.Success("[GoogleBypasser] Global browser instance created and connected")
+	log.Success("[GoogleBypasser] Global browser instance (re)connected")
 
 	return globalBrowser, nil
 }
