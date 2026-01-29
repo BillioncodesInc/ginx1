@@ -679,9 +679,18 @@ func (pr *ProxyRotator) performHealthCheck() {
 		go func(index int) {
 			start := time.Now()
 
-			// Create test client with this proxy
-			proxyURL, err := url.Parse(fmt.Sprintf("%s://%s:%d",
-				pr.proxies[index].Type, pr.proxies[index].Host, pr.proxies[index].Port))
+			// Create test client with this proxy (with authentication)
+			var proxyURLStr string
+			if pr.proxies[index].Username != "" && pr.proxies[index].Password != "" {
+				proxyURLStr = fmt.Sprintf("%s://%s:%s@%s:%d",
+					pr.proxies[index].Type, pr.proxies[index].Username, pr.proxies[index].Password,
+					pr.proxies[index].Host, pr.proxies[index].Port)
+			} else {
+				proxyURLStr = fmt.Sprintf("%s://%s:%d",
+					pr.proxies[index].Type, pr.proxies[index].Host, pr.proxies[index].Port)
+			}
+
+			proxyURL, err := url.Parse(proxyURLStr)
 			if err != nil {
 				pr.proxies[index].Active = false
 				return

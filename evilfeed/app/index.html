@@ -2241,6 +2241,8 @@
                 // data.enabled might be missing depending on how InternalAPI response looks
                 if (data.enabled !== undefined) this.settings.proxy_enabled = data.enabled;
 
+                // Persist synced settings to localStorage
+                this.persistSettings();
                 this.proxySyncStatus = 'synced';
                 this.proxySyncError = '';
             } catch (e) {
@@ -2279,6 +2281,8 @@
                 
                 this.proxySyncStatus = 'synced';
                 this.proxySyncError = '';
+                // Persist to localStorage so restoreSettings() doesn't override
+                this.persistSettings();
                 showToast('Global proxy settings pushed to Evilginx', 'success');
             } catch (e) {
                 this.proxySyncStatus = 'error';

