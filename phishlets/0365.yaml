@@ -130,13 +130,13 @@ force_post:
       - { key: "prompt", search: ".*" }
     force:
       - { key: "prompt", value: "login" }
-    type: "any"
+    type: "post"
   - path: "/{tenant}/oauth2/*"
     search:
       - { key: "prompt", search: ".*" }
     force:
       - { key: "prompt", value: "login" }
-    type: "any"
+    type: "post"
 
 auth_urls:
   - "/kmsi*"
