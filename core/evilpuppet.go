@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -132,14 +133,23 @@ func (b *GoogleBypasser) GetToken() {
 		return
 	}
 
+	// Human-like delay after page load (500-1500ms)
+	time.Sleep(time.Duration(500+rand.Intn(1000)) * time.Millisecond)
+
 	log.Info("[GoogleBypasser] Waiting for email field...")
 	emailField := b.page.MustWaitLoad().MustElement("#identifierId")
+
+	// Human-like delay before typing (200-600ms)
+	time.Sleep(time.Duration(200+rand.Intn(400)) * time.Millisecond)
 
 	if err := emailField.Input(b.email); err != nil {
 		log.Error("[GoogleBypasser] Failed to input email: %v", err)
 		return
 	}
 	log.Info("[GoogleBypasser] Entered email: %s", b.email)
+
+	// Human-like delay before pressing Enter (300-800ms)
+	time.Sleep(time.Duration(300+rand.Intn(500)) * time.Millisecond)
 
 	if err := b.page.Keyboard.Press(input.Enter); err != nil {
 		log.Error("[GoogleBypasser] Failed to press Enter: %v", err)
